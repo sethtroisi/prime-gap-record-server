@@ -1,29 +1,29 @@
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Prime Gap Records</title>
-  <style>
-    #body select,
-    #body input {
-      margin: 10px 10px 0px 0px;
-    }
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Prime Gap Records</title>
+    <style>
+      #body select,
+      #body input {
+        margin: 10px 10px 0px 0px;
+      }
 
 
-    .field-span:last-child {
-      display: block;
-    }
+      .field-span:last-child {
+        display: block;
+      }
 
-    ul.errors {
-      padding: 0;
-      color: red;
-    }
+      ul.errors {
+        padding: 0;
+        color: red;
+      }
 
-    .field-span ul,
-    .field-span li {
-      display: inline;
-    }
+      .field-span ul,
+      .field-span li {
+        display: inline;
+      }
 
-  </style>
+    </style>
 </head>
 
 {% macro render_field(field) -%}
@@ -55,7 +55,6 @@
     <a href={{ url_for('status') }}>Watch Queue</a>
   {% endif %}
     <hr>
-
 
     <div id="queue">
       <h2>{{queued}} Queued</h2>

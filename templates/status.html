@@ -1,32 +1,32 @@
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Records Queue</title>
-  <style>
-    #results {
-      max-height: 400px;
-      overflow: scroll;
-    }
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Records Queue</title>
+    <style>
+      #results {
+        max-height: 400px;
+        overflow: scroll;
+      }
 
-    h1 {
-      margin-bottom: 0;
-    }
+      h1 {
+        margin-bottom: 0;
+      }
 
-  </style>
+    </style>
 </head>
 
 <script type="text/javascript">
-  document.addEventListener("DOMContentLoaded", function() {
-    // Server-Side Events
-    var resultdiv = document.getElementById("results");
-      var eventSource = new EventSource("{{ url_for('stream') }}");
-      eventSource.onmessage = function(e) {
-        resultdiv.innerHTML = e.data + "\n<br>\n" + resultdiv.innerHTML;
-      };
-      eventSource.onerror = function(e) {
-        eventSource.close();
-      };
-  });
+    document.addEventListener("DOMContentLoaded", function() {
+      // Server-Side Events
+      var resultdiv = document.getElementById("results");
+        var eventSource = new EventSource("{{ url_for('stream') }}");
+        eventSource.onmessage = function(e) {
+          resultdiv.innerHTML = e.data + "\n<br>\n" + resultdiv.innerHTML;
+        };
+        eventSource.onerror = function(e) {
+          eventSource.close();
+        };
+    });
 </script>
 
 <body id="body">
@@ -38,7 +38,7 @@
       {% else %}
         <span style="color:red">
           Dead (ping the
-          <a href="https://www.mersenneforum.org/showthread.php?t=25313">hhread</a>
+          <a href="https://www.mersenneforum.org/showthread.php?t=25313">thread</a>
           please)
         </span>
       {% endif %}
@@ -65,7 +65,7 @@
     <div id="queue">
       <h2>{{queued}} Queued</h2>
     {% for line in queue %}
-      <div>{{ line.join(", ") }}</div>
+      <div>{{ line }}</div>
     {% endfor %}
     </div>
 

@@ -25,22 +25,23 @@ app.config['SECRET_KEY'] = SECRET_KEY
 
 RECORDS_FN = "records.txt"
 ALL_SQL_FN = "prime-gap-list/allgaps.sql"
+GAPS_DB_FN = "gaps.db"
 
 SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 REALLY_LARGE = 10 ** 10000
+SIEVE_PRIMES = 1000000
 
 
+# Globals for exchanging queue info with background thread
 new_records = []
 if os.path.isfile(RECORDS_FN):
     with open(RECORDS_FN, 'r') as f:
         new_records = f.readlines()
-
 recent = []
 queue = Queue()
 current = None
-
 worker = None
 
 
@@ -77,7 +78,7 @@ def gap_worker():
             print(line_fmt)
             print(sql_insert)
 
-            # Write to temp file
+            # Write to record file
             with open(RECORDS_FN, 'a') as f:
                 f.write(line_fmt + "\n")
 
@@ -86,6 +87,10 @@ def gap_worker():
 
             # Write to gaps.db
             with open_db() as db:
+                # Delete any existing gap
+                db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
+
+                # Insert new gap into db
                 db.execute(SQL_INSERT_PREFIX + str(sql_insert))
                 db.commit()
 
@@ -99,32 +104,28 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     if not gmpy2.is_prime(start):
         return False, "start not prime"
 
-    tests += 1
-
     if not gmpy2.is_prime(start + gap_size):
         return False, "end not prime"
 
-    tests += 1
+    tests += 2
     current = (gap_size, 0, tests)
 
     composite = [False for i in range(gap_size+1)]
-    sieve_primes = 1000000
-    primes = [True for i in range(sieve_primes+1)]
-    for p in range(2, sieve_primes):
+    primes = [True for i in range(SIEVE_PRIMES+1)]
+    for p in range(2, SIEVE_PRIMES):
         if not primes[p]: continue
         # Sieve other primes
-        for m in range(p*p, sieve_primes+1, p):
+        for m in range(p*p, SIEVE_PRIMES+1, p):
             primes[m] = False
 
         # Remove any numbers in the interval
         first = -start % p
         for m in range(first, gap_size+1, p):
-            assert (start + m) % p == 0
+            # assert (start + m) % p == 0
             composite[m] = True
 
     assert composite[0] is False and composite[-1] is False
 
-    # Do something better here with sieving small primes in the whole interval
     for k in range(2, gap_size, 2):
         if composite[k]: continue
 
@@ -142,12 +143,12 @@ def update_all_sql(sql_insert):
     with open(ALL_SQL_FN, 'r') as f:
         sql_lines = f.readlines()
 
-    line = SQL_INSERT_PREFIX + str(sql_insert).replace(' ', '') + "\n"
+    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(' ', '') + "\n"
 
     # Find the right place in the insert section
     for index, line in enumerate(sql_lines):
         if line.startswith("INSERT INTO gaps"):
-            # get the first number from the line
+            # Get the first number from the line
             match = re.search(r"\(([0-9]+),", line)
             assert match
             gap = int(match.group(1))
@@ -159,7 +160,7 @@ def update_all_sql(sql_insert):
         print("WEIRD INDEX", index)
         print(sql_lines[index])
 
-    sql_lines.insert(index, line)
+    sql_lines.insert(index, new_line)
 
     with open(ALL_SQL_FN, 'w') as f:
         for line in sql_lines:
@@ -170,17 +171,17 @@ def update_all_sql(sql_insert):
         os.chdir("prime-gap-list")
 
         commit_msg = "New Record {} merit={} uploaded by {}".format(
-            sql_insert[0], sql_insert[7], sql_insert[-1])
+            sql_insert[0], sql_insert[7], sql_insert[5])
 
         subprocess.check_call(['git', 'commit', '-am', commit_msg])
-        #subprocess.check_call(['git', 'push', 'safe'])
+        subprocess.check_call(['git', 'push', 'safe'])
     except Exception as e:
         print("Error!", e)
     os.chdir(wd)
 
 
 def open_db():
-    return sqlite3.connect("gaps.db")
+    return sqlite3.connect(GAPS_DB_FN)
 
 
 def get_db():
@@ -283,8 +284,8 @@ def possible_add_to_queue(form):
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
 
-#    if any(gap_start in line for line in new_records):
-#        return False, "Already added to records"
+    if any(gap_start in line for line in new_records):
+        return False, "Already added to records"
 
     if any(k[0] == gap_size for k in queue.queue):
         return True, "Already in queue"
@@ -293,7 +294,7 @@ def possible_add_to_queue(form):
     rv = list(db.execute(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
         (gap_size,)))
-    assert len(rv) in (0, 1)
+    assert len(rv) in (0, 1), [tuple(r) for r in rv]
     if len(rv):
         e_merit, e_startprime = rv[0]
     else:
@@ -311,8 +312,8 @@ def possible_add_to_queue(form):
         return False, "gapstart={} is even".format(gap_start)
 
     newmerit = gap_size / gmpy2.log(start_n)
-    if newmerit < e_merit:
-        return False, "Existing {} with better merit {:.3f} vs {:.4f}".format(
+    if newmerit <= e_merit + 0.005:
+        return False, "Existing {} with better (or close) merit {:.3f} vs {:.4f}".format(
             e_startprime, e_merit, newmerit)
 
     # Pull data from form for old style line & github entry
