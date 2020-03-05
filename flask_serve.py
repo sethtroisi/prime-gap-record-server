@@ -9,13 +9,13 @@ import threading
 import time
 from queue import Queue
 
+import gmpy2
 from flask import Flask, g, render_template, Response, request
 from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, ValidationError
 from wtforms_components import IntegerField, DateField, DateRange
 
-import gmpy2
 
 print ("Setting up prime-records controller")
 
@@ -37,6 +37,8 @@ if os.path.isfile(RECORDS_FN):
 recent = []
 queue = Queue()
 current = None
+
+worker = None
 
 
 def gap_worker():
@@ -369,11 +371,12 @@ def controller():
 
 @app.route('/status')
 def status():
-    global new_records, recent, queue, current
+    global new_records, recent, queue, current, worker
 
     queue_data = [k[2] for k in queue.queue]
     queued = len(queue_data) + (current is not None)
     return render_template('status.html',
+        running=worker.is_alive(),
         new_records=new_records,
         recent=recent,
         queue=queue_data,
@@ -399,8 +402,8 @@ def stream():
 
 if __name__ == "__main__":
     # Create background gap_worker
-    background = threading.Thread(target=gap_worker)
-    background.start()
+    worker = threading.Thread(target=gap_worker)
+    worker.start()
 
     app.run(
         host='0.0.0.0',
