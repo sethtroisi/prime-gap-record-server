@@ -22,20 +22,21 @@ SECRET_KEY = hex(random.randint(0, 2**32))
 app.config['SECRET_KEY'] = SECRET_KEY
 
 # Save to disk and reload (or just in prime-gaps.db)
+new_records = []
 recent = []
 queue = Queue()
 current = None
 
 
-def shortStart(n):
+def short_start(n):
     str_n = str(n)
     if len(str_n) < 20:
         return str_n
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-def gapWorker():
-    global recent, queue, current
+def gap_worker():
+    global new_records, recent, queue, current
 
     print ("Gap Worker running")
 
@@ -43,29 +44,29 @@ def gapWorker():
         current = None
         # Blocks without busy wait
         # TODO: make this not remove from queue
-        gapSize, start, lineFmt, sqlInsert = queue.get()
-        human = sqlInsert[-1]
+        gap_size, start, line_fmt, sql_insert = queue.get()
+        human = sql_insert[-1]
         start_t = time.time()
 
         print ("Testing {} gapsize={}, start={}".format(
-            human, gapSize, shortStart(start)))
+            human, gap_size, short_start(start)))
 
         tests = 0
-        current = (gapSize, 0, tests)
+        current = (gap_size, 0, tests)
 
         if not gmpy2.is_prime(start):
-            recent.append((gapSize, human, "start not prime"))
+            recent.append((gap_size, human, "start not prime"))
             continue
         tests += 1
-        current = (gapSize, 0, tests)
+        current = (gap_size, 0, tests)
 
-        if not gmpy2.is_prime(start + gapSize):
-            recent.append((gapSize, human, "end not prime"))
+        if not gmpy2.is_prime(start + gap_size):
+            recent.append((gap_size, human, "end not prime"))
             continue
         tests += 1
-        current = (gapSize, 0, tests)
+        current = (gap_size, 0, tests)
 
-        composite = [False for i in range(gapSize+1)]
+        composite = [False for i in range(gap_size+1)]
         sieve_primes = 1000000
         primes = [True for i in range(sieve_primes+1)]
         for p in range(2, sieve_primes):
@@ -76,29 +77,29 @@ def gapWorker():
 
             # Remove any numbers in the interval
             first = -start % p
-            for m in range(first, gapSize+1, p):
+            for m in range(first, gap_size+1, p):
                 assert (start + m) % p == 0
                 composite[m] = True
 
         assert composite[0] == False and composite[-1] == False
 
         # Do something better here with sieving small primes in the whole interval
-        for k in range(2, gapSize, 2):
+        for k in range(2, gap_size, 2):
             if composite[k]: continue
 
             if gmpy2.is_prime(start + k):
-                recent.append((gapSize, human, "start + {} is prime".format(k)))
+                recent.append((gap_size, human, "start + {} is prime".format(k)))
                 break
             tests += 1
-            current = (gapSize, k, tests)
+            current = (gap_size, k, tests)
         else:
             end_t = time.time()
-            recent.append((gapSize, human, "Good! ({:.1f}s)".format(end_t - start_t)))
-            recent.append(lineFmt)
+            recent.append((gap_size, human, "Good! ({:.1f}s)".format(end_t - start_t)))
+            new_records.append(line_fmt)
 
             # TODO create git submit ...
-            print (lineFmt)
-            print (sqlInsert)
+            print (line_fmt)
+            print (sql_insert)
 
 
 class GapForm(FlaskForm):
@@ -106,7 +107,7 @@ class GapForm(FlaskForm):
         min=datetime.date(2015, 1, 1),
         max=datetime.date.today() + datetime.timedelta(hours=48))
 
-    typeChoices = (('C?P', '(C??) PRP on endpoints'),
+    type_choices = (('C?P', '(C??) PRP on endpoints'),
                    ('C?C', '(C?P) certified endpoints'))
 
     gapsize     = IntegerField('Gap Size',
@@ -115,7 +116,7 @@ class GapForm(FlaskForm):
         validators=[DataRequired()])
 
     ccc         = SelectField('CCC',
-        choices=typeChoices,
+        choices=type_choices,
         description='C?? or C?P',
         validators=[DataRequired()])
 
@@ -151,7 +152,7 @@ def close_connection(exception):
 
 
 REALLY_LARGE = 10 ** 10000
-def parseStart(gapstart_str):
+def parse_start(gapstart_str):
     n = 1
     if '(' in gapstart_str or ')' in gapstart_str:
         return None
@@ -163,27 +164,27 @@ def parseStart(gapstart_str):
 
     for generation in range(100):
         # Parse Exponents
-        expMatch = re.search(r'([0-9]+)\^([0-9]+)', gapstart_str)
-        if expMatch:
-            base, exp = map(int, expMatch.groups())
+        exp_match = re.search(r'([0-9]+)\^([0-9]+)', gapstart_str)
+        if exp_match:
+            base, exp = map(int, exp_match.groups())
             if gmpy.log(base) * exp > 10100:
                 return REALLY_LARGE
             result = base ** exp
-            gapstart_str = gapstart_str.replace(expMatch.group(0), str(result))
+            gapstart_str = gapstart_str.replace(exp_match.group(0), str(result))
             continue
 
-        primorialMatch = re.search(r'([0-9]+)#', gapstart_str)
-        if primorialMatch:
-            p = int(primorialMatch.group(1))
+        primorial_match = re.search(r'([0-9]+)#', gapstart_str)
+        if primorial_match:
+            p = int(primorial_match.group(1))
             if p > 20000:
                 return REALLY_LARGE
             result = gmpy2.primorial(p)
-            gapstart_str = gapstart_str.replace(primorialMatch.group(0), str(result))
+            gapstart_str = gapstart_str.replace(primorial_match.group(0), str(result))
             continue
 
-        mdMatch = re.search(r'([0-9]+)([/*])([0-9]+)', gapstart_str)
-        if mdMatch:
-            a, sign, b = mdMatch.groups()
+        md_match = re.search(r'([0-9]+)([/*])([0-9]+)', gapstart_str)
+        if md_match:
+            a, sign, b = md_match.groups()
             a_n = int(a)
             b_n = int(b)
             if sign == '*':
@@ -196,12 +197,12 @@ def parseStart(gapstart_str):
                 result = a_n // b_n
             else:
                 return None
-            gapstart_str = gapstart_str.replace(mdMatch.group(0), str(result))
+            gapstart_str = gapstart_str.replace(md_match.group(0), str(result))
             continue
 
-        asMatch = re.search(r'([0-9]+)([+-])([0-9]+)', gapstart_str)
-        if asMatch:
-            a, sign, b = asMatch.groups()
+        as_match = re.search(r'([0-9]+)([+-])([0-9]+)', gapstart_str)
+        if as_match:
+            a, sign, b = as_match.groups()
             a_n = int(a)
             b_n = int(b)
             if sign == '+':
@@ -210,51 +211,49 @@ def parseStart(gapstart_str):
                 result = a_n - b_n
             else:
                 return None
-            gapstart_str = gapstart_str.replace(asMatch.group(0), str(result))
+            gapstart_str = gapstart_str.replace(as_match.group(0), str(result))
             continue
 
-        nMatch = re.search(r'^[0-9]+$', gapstart_str)
-        if nMatch:
+        n_match = re.search(r'^[0-9]+$', gapstart_str)
+        if n_match:
             return int(gapstart_str)
 
     return None
 
 
-def possibleAddToQueue(form):
-    gapSize = int(form.gapsize.data)
-    gapStart = form.gapstart.data
+def possible_add_to_queue(form):
+    gap_size = int(form.gapsize.data)
+    gap_start = form.gapstart.data
 
-    if gapSize % 2 == 1:
+    if gap_size % 2 == 1:
         return False, "Odd gapsize is unlikely"
-    if gapSize <= 1200:
-        return False, "optimal gapsize={} has already been found".format(gapSize)
+    if gap_size <= 1200:
+        return False, "optimal gapsize={} has already been found".format(gap_size)
 
-    # TODO also check recent
-
-    if any(k[0] == gapSize for k in queue.queue):
+    if any(k[0] == gap_size for k in queue.queue):
         return True, "Already in queue"
 
     db = get_db()
     rv = list(db.execute(
         "SELECT merit, primedigits, startprime FROM gaps WHERE gapsize = ?",
-        (gapSize,)))
+        (gap_size,)))
     assert len(rv) in (0, 1)
     if len(rv):
         merit, primedigits, startprime = rv[0]
     else:
         merit, primedigits, startprime = 0, 10 ** 6, 0
 
-    start_n = parseStart(gapStart)
+    start_n = parse_start(gap_start)
     if start_n is None:
         return False, "Can't parse gapstart={} (post on MersenneForum if this is an error)".format(
-            gapStart)
+            gap_start)
     if start_n >= REALLY_LARGE:
-        return False, "gapstart={} is to large at this time".format(gapStart)
+        return False, "gapstart={} is to large at this time".format(gap_start)
 
     if start_n % 2 == 0:
-        return False, "gapstart={} is even".format(gapStart)
+        return False, "gapstart={} is even".format(gap_start)
 
-    newmerit = gapSize / gmpy2.log(start_n)
+    newmerit = gap_size / gmpy2.log(start_n)
     if newmerit < merit:
         return False, "Existing gap after {} with merit {:.3f} > {:.4f}".format(
             startprime, merit, newmerit)
@@ -264,24 +263,24 @@ def possibleAddToQueue(form):
     newmerit_fmt = "{:.3f}".format(newmerit)
     primedigits = len(str(start_n))
 
-    lineFmt = "{}, {}, {}, {}, {}, {}, {}".format(
-        gapSize,
+    line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
+        gap_size,
         form.ccc.data,
         newmerit_fmt,
         form.discoverer.data,
         form.date.data.isoformat(),
         primedigits,
-        gapStart)
+        gap_start)
 
     year = form.date.data.year
     assert 2015 <= year <= 2024, year
-    sqlInsert = (gapSize, False) + tuple(form.ccc.data) + (
-        form.discoverer.data, year, newmerit_fmt, primedigits, gapStart)
+    sql_insert = (gap_size, False) + tuple(form.ccc.data) + (
+        form.discoverer.data, year, newmerit_fmt, primedigits, gap_start)
 
 
-    queue.put((gapSize, start_n, lineFmt, sqlInsert))
+    queue.put((gap_size, start_n, line_fmt, sql_insert))
     return True, "Adding {} gapsize={} to queue, would improve merit {:.3f} to {:.3f}".format(
-        shortStart(start_n), gapSize, merit, newmerit)
+        short_start(start_n), gap_size, merit, newmerit)
 
 
 @app.route('/', methods=('GET', 'POST'))
@@ -294,7 +293,7 @@ def controller():
     if form.validate_on_submit():
         if queue.qsize() > 10:
             return "Long queue try again later"
-        added, status = possibleAddToQueue(form)
+        added, status = possible_add_to_queue(form)
 
     queued = queue.qsize() + (current is not None)
     queue_data = [k[2] for k in queue.queue]
@@ -310,11 +309,12 @@ def controller():
 
 @app.route('/status')
 def status():
-    global recent, queue, current
+    global new_records, recent, queue, current
 
     queue_data = [k[2] for k in queue.queue]
     queued = len(queue_data) + (current is not None)
     return render_template('status.html',
+        new_records=new_records,
         recent=recent,
         queue=queue_data,
         current=current,
@@ -322,7 +322,7 @@ def status():
 
 @app.route('/validate-gap')
 def stream():
-    def gapStatusStream():
+    def gap_status_stream():
         global queue
 
         queued = queue.qsize() + (current is not None)
@@ -334,12 +334,12 @@ def stream():
             time.sleep(1)
         yield 'data: Done (refresh to see recent status)'
 
-    return Response(gapStatusStream(), mimetype='text/event-stream')
+    return Response(gap_status_stream(), mimetype='text/event-stream')
 
 
 if __name__ == "__main__":
-    # Create background gapWorker
-    background = threading.Thread(target=gapWorker)
+    # Create background gap_worker
+    background = threading.Thread(target=gap_worker)
     background.start()
 
     app.run(

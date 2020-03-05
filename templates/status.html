@@ -26,7 +26,16 @@
 </script>
 
 <body id="body">
-    <h2>Prime Gap Records Queue</h2>
+    <h1>Prime Gap Records Queue</h1>
+
+    <div id="records">
+    {% if new_records %}
+      <h2>New Records</h2>
+    {% for r in new_records %}
+      <div>{{ r }}</div>
+    {% endfor %}
+    {% endif %}
+    </div>
 
     <div id="recent">
     {% if recent %}
@@ -36,6 +45,7 @@
     {% endfor %}
     {% endif %}
     </div>
+
     <div id="queue">
       <h2>{{queued}} Queued</h2>
     {% for line in queue %}
@@ -44,6 +54,7 @@
     </div>
 
     <hr>
+    <h2>Status</h2>
     <div id="results">{{status}}</div>
     <hr>
 </body>
