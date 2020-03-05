@@ -1,0 +1,65 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prime Gap Records</title>
+  <style>
+    #body select,
+    #body input {
+      margin: 10px 10px 0px 0px;
+    }
+
+
+    .field-span:last-child {
+      display: block;
+    }
+
+    ul.errors {
+      padding: 0;
+      color: red;
+    }
+
+    .field-span ul,
+    .field-span li {
+      display: inline;
+    }
+
+  </style>
+</head>
+
+{% macro render_field(field) -%}
+    <span class="field-span">
+      {{ field(placeholder=field.description or field.name) }}
+      {% if field.errors %}
+        <ul class="errors">
+        {% for error in field.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    </span>
+{% endmacro %}
+
+
+<body id="body"
+    <h2>Prime Gap Records</h2>
+
+    <form method="POST" id="cmdForm" action="/"><br>
+      {% for field in form %}
+        {{ render_field(field) }}
+      {% endfor %}
+    </form>
+
+    <hr>
+
+    <div id="recent">
+      <h2>{{queued}} Queued</h2>
+      {% if recent %}
+        <h2>Recent records checked</h2>
+        {% for r in recent %}
+          <div>{{ r }}</div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div id="results">{{status}}</div>
+</body>
+</html>
