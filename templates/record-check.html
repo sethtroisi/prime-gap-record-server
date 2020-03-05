@@ -40,7 +40,7 @@
 {% endmacro %}
 
 
-<body id="body"
+<body id="body">
     <h2>Prime Gap Records</h2>
 
     <form method="POST" id="cmdForm" action="/"><br>
@@ -50,16 +50,18 @@
     </form>
 
     <hr>
-
-    <div id="recent">
-      <h2>{{queued}} Queued</h2>
-      {% if recent %}
-        <h2>Recent records checked</h2>
-        {% for r in recent %}
-          <div>{{ r }}</div>
-        {% endfor %}
-      {% endif %}
-    </div>
     <div id="results">{{status}}</div>
+  {% if added %}
+    <a href={{ url_for('status') }}>Watch Queue</a>
+  {% endif %}
+    <hr>
+
+
+    <div id="queue">
+      <h2>{{queued}} Queued</h2>
+    {% for line in queue %}
+      <div>{{ line }}</div>
+    {% endfor %}
+    </div>
 </body>
 </html>

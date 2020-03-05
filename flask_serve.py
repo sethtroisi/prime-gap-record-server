@@ -40,25 +40,27 @@ def gapWorker():
     print ("Gap Worker running")
 
     while True:
-        # Blocks without busy wait
         current = None
+        # Blocks without busy wait
+        # TODO: make this not remove from queue
         gapSize, start, lineFmt, sqlInsert = queue.get()
+        human = sqlInsert[-1]
         start_t = time.time()
 
-        abbr = shortStart(start)
-        print ("Testing gapsize={}, start={}".format(gapSize, abbr))
+        print ("Testing {} gapsize={}, start={}".format(
+            human, gapSize, shortStart(start)))
 
         tests = 0
         current = (gapSize, 0, tests)
 
         if not gmpy2.is_prime(start):
-            recent.append((gapSize, abbr, "start not prime"))
+            recent.append((gapSize, human, "start not prime"))
             continue
         tests += 1
         current = (gapSize, 0, tests)
 
         if not gmpy2.is_prime(start + gapSize):
-            recent.append((gapSize, abbr, "end not prime"))
+            recent.append((gapSize, human, "end not prime"))
             continue
         tests += 1
         current = (gapSize, 0, tests)
@@ -85,13 +87,14 @@ def gapWorker():
             if composite[k]: continue
 
             if gmpy2.is_prime(start + k):
-                recent.append((gapSize, abbr, "start + {} is prime".format(k)))
+                recent.append((gapSize, human, "start + {} is prime".format(k)))
                 break
             tests += 1
             current = (gapSize, k, tests)
         else:
             end_t = time.time()
-            recent.append((gapSize, abbr, "Good! ({:.1f}s)".format(end_t - start_t)))
+            recent.append((gapSize, human, "Good! ({:.1f}s)".format(end_t - start_t)))
+            recent.append(lineFmt)
 
             # TODO create git submit ...
             print (lineFmt)
@@ -261,7 +264,7 @@ def possibleAddToQueue(form):
     newmerit_fmt = "{:.3f}".format(newmerit)
     primedigits = len(str(start_n))
 
-    lineFmt = "{},{},{},{},{},{},{}".format(
+    lineFmt = "{}, {}, {}, {}, {}, {}, {}".format(
         gapSize,
         form.ccc.data,
         newmerit_fmt,
@@ -283,28 +286,42 @@ def possibleAddToQueue(form):
 
 @app.route('/', methods=('GET', 'POST'))
 def controller():
-    global recent, queue
+    global recent, queue, current
     form = GapForm()
-    queued = queue.qsize() + (current is not None)
 
+    status = ""
     added = False
-    status = "Current Queue: {} check{}".format(queued, "s" if queued > 0 else "")
-
     if form.validate_on_submit():
         if queue.qsize() > 10:
             return "Long queue try again later"
         added, status = possibleAddToQueue(form)
+
+    queued = queue.qsize() + (current is not None)
+    queue_data = [k[2] for k in queue.queue]
 
     return render_template('record-check.html',
         form=form,
         added=added,
         status=status,
         queued=queued,
+        queue=queue_data,
     )
 
 
+@app.route('/status')
+def status():
+    global recent, queue, current
+
+    queue_data = [k[2] for k in queue.queue]
+    queued = len(queue_data) + (current is not None)
+    return render_template('status.html',
+        recent=recent,
+        queue=queue_data,
+        current=current,
+        queued=queued)
+
 @app.route('/validate-gap')
-def validate():
+def stream():
     def gapStatusStream():
         global queue
 
@@ -316,7 +333,6 @@ def validate():
             yield "data: " + state + "\n\n"
             time.sleep(1)
         yield 'data: Done (refresh to see recent status)'
-        print("Statuing done2")
 
     return Response(gapStatusStream(), mimetype='text/event-stream')
 
