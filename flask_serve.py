@@ -1,6 +1,9 @@
+import bisect
 import datetime
+import os
 import random
 import re
+import subprocess
 import sqlite3
 import threading
 import time
@@ -21,18 +24,19 @@ app = Flask(__name__)
 SECRET_KEY = hex(random.randint(0, 2**32))
 app.config['SECRET_KEY'] = SECRET_KEY
 
-# Save to disk and reload (or just in prime-gaps.db)
+RECORDS_FN = "records.txt"
+ALL_SQL_FN = "prime-gap-list/allgaps.sql"
+
+assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
+
 new_records = []
+if os.path.isfile(RECORDS_FN):
+    with open(RECORDS_FN, 'r') as f:
+        new_records = f.readlines()
+
 recent = []
 queue = Queue()
 current = None
-
-
-def short_start(n):
-    str_n = str(n)
-    if len(str_n) < 20:
-        return str_n
-    return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
 def gap_worker():
@@ -97,9 +101,55 @@ def gap_worker():
             recent.append((gap_size, human, "Good! ({:.1f}s)".format(end_t - start_t)))
             new_records.append(line_fmt)
 
-            # TODO create git submit ...
             print (line_fmt)
             print (sql_insert)
+
+            # Write to temp file
+            with open(RECORDS_FN, 'a') as f:
+                f.write(line_fmt + "\n")
+
+            # Write to allgaps.sql (sorted), kinda slow
+            update_all_sql(sql_insert)
+
+
+def update_all_sql(sql_insert):
+    sql_lines = []
+    with open(ALL_SQL_FN, 'r') as f:
+        sql_lines = f.readlines()
+
+    line = "INSERT INTO gaps VALUES{}\n".format(
+        str(sql_insert).replace(' ', ''))
+
+    # Find the right place in the insert section
+    for index, line in enumerate(sql_lines):
+        if line.startswith("INSERT INTO gaps"):
+            # get the first number from the line
+            match = re.search(r"\(([0-9]+),", line)
+            assert match
+            gap = int(match.group(1))
+            if gap > sql_insert[0]:
+                break
+
+    # We have the format wrong
+    if not (100 < index < 90000):
+        print ("WEIRD INDEX", index)
+        print (sql_lines[index])
+
+    sql_lines.insert(index, line)
+
+    with open(ALL_SQL_FN, 'w') as f:
+        for line in sql_lines:
+            f.write(line)
+
+    wd = os.getcwd()
+    try:
+        os.chdir("prime-gap-list")
+        subprocess.check_call(
+            ['git', 'commit', '-am', 'New record commited by ' + sql_insert[5]])
+        subprocess.check_call(['git', 'push', 'safe'])
+    except Exception as e:
+        print ("Error!", e)
+    os.chdir(wd)
 
 
 class GapForm(FlaskForm):
@@ -149,6 +199,13 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+
+def short_start(n):
+    str_n = str(n)
+    if len(str_n) < 20:
+        return str_n
+    return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
 REALLY_LARGE = 10 ** 10000
@@ -223,12 +280,15 @@ def parse_start(gapstart_str):
 
 def possible_add_to_queue(form):
     gap_size = int(form.gapsize.data)
-    gap_start = form.gapstart.data
+    gap_start = form.gapstart.data.replace(' ', '')
 
     if gap_size % 2 == 1:
         return False, "Odd gapsize is unlikely"
     if gap_size <= 1200:
         return False, "optimal gapsize={} has already been found".format(gap_size)
+
+#    if any(gap_start in line for line in new_records):
+#        return False, "Already added to records"
 
     if any(k[0] == gap_size for k in queue.queue):
         return True, "Already in queue"
@@ -260,7 +320,7 @@ def possible_add_to_queue(form):
 
 
     # Pull data from form for old style line & github entry
-    newmerit_fmt = "{:.3f}".format(newmerit)
+    newmerit_fmt = round(float(newmerit), 3)
     primedigits = len(str(start_n))
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
@@ -274,7 +334,7 @@ def possible_add_to_queue(form):
 
     year = form.date.data.year
     assert 2015 <= year <= 2024, year
-    sql_insert = (gap_size, False) + tuple(form.ccc.data) + (
+    sql_insert = (gap_size, 0) + tuple(form.ccc.data) + (
         form.discoverer.data, year, newmerit_fmt, primedigits, gap_start)
 
 
