@@ -31,7 +31,7 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 REALLY_LARGE = 10 ** 10000
-SIEVE_PRIMES = 1000000
+SIEVE_PRIMES = 10 ** 7
 
 
 # Globals for exchanging queue info with background thread
@@ -110,24 +110,28 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     if not gmpy2.is_prime(start + gap_size):
         return False, "end not prime"
 
+    assert start % 2 == 1
+
     tests += 2
     current = "Testing {}, {}/{} done, {} PRPs performed".format(
         gap_size, 2, gap_size, tests)
 
     composite = [False for i in range(gap_size+1)]
-    primes = [True for i in range(SIEVE_PRIMES+1)]
-    for p in range(2, SIEVE_PRIMES):
-        if not primes[p]: continue
+    primes = [True for i in range(SIEVE_PRIMES//2+1)]
+    for p in range(3, SIEVE_PRIMES):
+        if not primes[p//2]: continue
+
         # Sieve other primes
-        for m in range(p*p, SIEVE_PRIMES+1, p):
+        for m in range(p*p//2, SIEVE_PRIMES//2+1, p):
             primes[m] = False
 
-        # Remove any numbers in the interval
-        first = -start % p
+        # Remove any numbers in the interval divisible by p
+        first = (-start) % p
         for m in range(first, gap_size+1, p):
             # assert (start + m) % p == 0
             composite[m] = True
 
+    # Endpoints have been verified prime, something is very wrong.
     assert composite[0] is False and composite[-1] is False
 
     for k in range(2, gap_size, 2):
@@ -496,18 +500,20 @@ def status():
 def stream():
     def gap_status_stream():
         global queue, current
+        if not queue.qsize():
+            # avoid Done print statement
+            return
 
         for i in range(3600):
             queued = queue.qsize()
             if not queued:
                 break
             queued = queue.qsize()
-            state = "Queue {}: {}:".format(queued, current)
+            state = "Queue {}: {}".format(queued, current)
             yield "data: " + state + "\n\n"
             time.sleep(1)
 
         yield "data: Done (refresh to see recent status)\n\n"
-        time.sleep(1)
 
     return Response(gap_status_stream(), mimetype="text/event-stream")
 

@@ -14,3 +14,7 @@ git config --global user.name
 git config --global user.email
 # Make sure ssh exists
 ```
+
+### TODO
+
+* [ ] Figure out out how to correctly compute merit for existing records.
