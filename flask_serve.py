@@ -21,7 +21,7 @@ print("Setting up prime-records controller")
 app = Flask(__name__)
 
 SECRET_KEY = hex(random.randint(0, 2**32))
-app.config['SECRET_KEY'] = SECRET_KEY
+app.config["SECRET_KEY"] = SECRET_KEY
 
 RECORDS_FN = "records.txt"
 ALL_SQL_FN = "prime-gap-list/allgaps.sql"
@@ -37,7 +37,7 @@ SIEVE_PRIMES = 1000000
 # Globals for exchanging queue info with background thread
 new_records = []
 if os.path.isfile(RECORDS_FN):
-    with open(RECORDS_FN, 'r') as f:
+    with open(RECORDS_FN, "r") as f:
         new_records = f.readlines()
 recent = []
 queue = Queue()
@@ -55,7 +55,7 @@ def gap_worker():
         # Blocks without busy wait
         queue.not_empty.acquire()
         if queue._qsize() == 0:
-            print ("Worker waiting for not_empty")
+            print("Worker waiting for not_empty")
             queue.not_empty.wait()
         queue_0 = queue.queue[0]
         queue.not_empty.release()
@@ -82,7 +82,7 @@ def gap_worker():
             print(sql_insert)
 
             # Write to record file
-            with open(RECORDS_FN, 'a') as f:
+            with open(RECORDS_FN, "a") as f:
                 f.write(line_fmt + "\n")
 
             # Write to allgaps.sql (sorted), kinda slow
@@ -145,10 +145,10 @@ def test_one(gap_size, start, line_fmt, sql_insert):
 
 def update_all_sql(sql_insert):
     sql_lines = []
-    with open(ALL_SQL_FN, 'r') as f:
+    with open(ALL_SQL_FN, "r") as f:
         sql_lines = f.readlines()
 
-    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(' ', '') + "\n"
+    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(" ", "") + "\n"
 
     # Find the right place in the insert section
     for index, line in enumerate(sql_lines):
@@ -167,7 +167,7 @@ def update_all_sql(sql_insert):
 
     sql_lines.insert(index, new_line)
 
-    with open(ALL_SQL_FN, 'w') as f:
+    with open(ALL_SQL_FN, "w") as f:
         for line in sql_lines:
             f.write(line)
 
@@ -178,8 +178,8 @@ def update_all_sql(sql_insert):
         commit_msg = "New Record {} merit={} uploaded by {}".format(
             sql_insert[0], sql_insert[7], sql_insert[5])
 
-        subprocess.check_call(['git', 'commit', '-am', commit_msg])
-        subprocess.check_call(['git', 'push', 'safe'])
+        subprocess.check_call(["git", "commit", "-am", commit_msg])
+        subprocess.check_call(["git", "push", "safe"])
     except Exception as e:
         print("Error!", e)
     os.chdir(wd)
@@ -190,7 +190,7 @@ def open_db():
 
 
 def get_db():
-    db = getattr(g, '_database', None)
+    db = getattr(g, "_database", None)
     # Setup
     if db is None:
         db = g._database = open_db()
@@ -200,7 +200,7 @@ def get_db():
 
 @app.teardown_appcontext
 def close_connection(exception):
-    db = getattr(g, '_database', None)
+    db = getattr(g, "_database", None)
     if db is not None:
         db.close()
 
@@ -213,18 +213,18 @@ def short_start(n):
 
 
 def parse_start(num_str):
-    if '(' in num_str or ')' in num_str:
+    if "(" in num_str or ")" in num_str:
         return None
     if len(num_str) > 10000:
         return None
 
     # Remove whitespace from string
-    num_str = re.sub(r'\s', '', num_str)
+    num_str = re.sub(r"\s", "", num_str)
 
     for generation in range(20):
         # Parse Exponents
-        if '^' in num_str:
-            match = re.search(r'(\d+)\^(\d+)', num_str)
+        if "^" in num_str:
+            match = re.search(r"(\d+)\^(\d+)", num_str)
             if match:
                 base, exp = map(int, match.groups())
                 if gmpy2.log(base) * exp > 10100:
@@ -233,8 +233,8 @@ def parse_start(num_str):
                 num_str = num_str.replace(match.group(0), str(result))
                 continue
 
-        if '#' in num_str:
-            match = re.search(r'(\d+)#', num_str)
+        if "#" in num_str:
+            match = re.search(r"(\d+)#", num_str)
             if match:
                 p = int(match.group(1))
                 if p > 20000:
@@ -243,17 +243,17 @@ def parse_start(num_str):
                 num_str = num_str.replace(match.group(0), str(result))
                 continue
 
-        if '*' in num_str or '/' in num_str:
-            match = re.search(r'(\d+)([/*])(\d+)', num_str)
+        if "*" in num_str or "/" in num_str:
+            match = re.search(r"(\d+)([/*])(\d+)", num_str)
             if match:
                 a, sign, b = match.groups()
                 a_n = int(a)
                 b_n = int(b)
-                if sign == '*':
+                if sign == "*":
                     if len(a) + len(b) > 10100:
                         return REALLY_LARGE
                     result = a_n * b_n
-                elif sign == '/':
+                elif sign == "/":
                     if b_n == 0 or a_n % b_n != 0:
                         return None
                     result = a_n // b_n
@@ -262,25 +262,26 @@ def parse_start(num_str):
                 num_str = num_str.replace(match.group(0), str(result))
                 continue
 
-        if '+' in num_str or '-' in num_str:
-            match = re.search(r'([0-9]+)([+-])([0-9]+)', num_str)
+        if "+" in num_str or "-" in num_str:
+            match = re.search(r"([0-9]+)([+-])([0-9]+)", num_str)
             if match:
                 a, sign, b = match.groups()
                 a_n = int(a)
                 b_n = int(b)
-                if sign == '+':
+                if sign == "+":
                     result = a_n + b_n
-                elif sign == '-':
+                elif sign == "-":
                     result = a_n - b_n
                 else:
                     return None
                 num_str = num_str.replace(match.group(0), str(result))
                 continue
 
-        if re.search(r'^[0-9]+$', num_str):
+        if re.search(r"^[0-9]+$", num_str):
             return int(num_str)
 
     return None
+
 
 def possible_add_to_queue(
         gap_size, gap_start,
@@ -292,7 +293,7 @@ def possible_add_to_queue(
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
 
-    gap_start = gap_start.replace(' ', '')
+    gap_start = gap_start.replace(" ", "")
     if any(gap_start in line for line in new_records):
         return False, "Already added to records"
     if any(k[0] == gap_size for k in queue.queue):
@@ -318,7 +319,7 @@ def possible_add_to_queue(
 
     newmerit = gap_size / gmpy2.log(start_n)
     if newmerit <= e_merit + 0.005:
-        return False, "Existing {} with better (or close) merit {:.3f} vs {:.4f}".format(
+        return False, "Existing {} with better merit {:.3f} vs {:.4f}".format(
             e_startprime, e_merit, newmerit)
 
     # Pull data from form for old style line & github entry
@@ -341,11 +342,12 @@ def possible_add_to_queue(
 
 def possible_add_to_queue_form(form):
     return possible_add_to_queue(
-        form.gapsize.data, # TODO int(...) ?
+        form.gapsize.data,
         form.gapstart.data,
         form.ccc.data,
         form.discoverer.data,
         form.date.data)
+
 
 def possible_add_to_queue_log(form):
     discoverer = form.discoverer.data
@@ -355,13 +357,13 @@ def possible_add_to_queue_log(form):
     adds = []
     statuses = []
     for line in log_data.split("\n"):
-        log_re = r'(\d+)\s+([0-9.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)'
+        log_re = r"(\d+)\s+([0-9.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
         match = re.search(log_re, line)
         if match:
             added, status = possible_add_to_queue(
                 int(match.group(1)),
                 match.group(3),
-                "C?P", # TODO describe this somewhere
+                "C?P",  # TODO describe this somewhere
                 discoverer,
                 discover_date)
             adds.append(added)
@@ -378,38 +380,38 @@ class GapForm(FlaskForm):
         max=datetime.date.today() + datetime.timedelta(hours=48))
 
     type_choices = (
-        ('C?P', '(C??) PRP on endpoints'),
-        ('C?C', '(C?P) certified endpoints')
+        ("C?P", "(C??) PRP on endpoints"),
+        ("C?C", "(C?P) certified endpoints")
     )
 
     gapsize = IntegerField(
-        'Gap Size',
-        description='Gap size',
-        render_kw={'style': 'width:80px'},
+        "Gap Size",
+        description="Gap size",
+        render_kw={"style": "width:80px"},
         validators=[DataRequired()])
 
     ccc = SelectField(
-        'CCC',
+        "CCC",
         choices=type_choices,
-        description='C?? or C?P',
+        description="C?? or C?P",
         validators=[DataRequired()])
 
     discoverer = StringField(
-        'Discoverer',
-        render_kw={'size': 12},
+        "Discoverer",
+        render_kw={"size": 12},
         validators=[DataRequired()])
 
     date = DateField(
-        'Date',
+        "Date",
         validators=[DataRequired(), discover_valid_date])
 
     gapstart = StringField(
-        'Gapstart',
-        description='Gap start',
-        render_kw={'size': 30},
+        "Gapstart",
+        description="Gap start",
+        render_kw={"size": 30},
         validators=[DataRequired()])
 
-    submit = SubmitField('Add')
+    submit = SubmitField("Add")
 
 
 class GapLogForm(FlaskForm):
@@ -418,42 +420,42 @@ class GapLogForm(FlaskForm):
         max=datetime.date.today() + datetime.timedelta(hours=48))
 
     discoverer = StringField(
-        'Discoverer',
-        render_kw={'size': 12},
+        "Discoverer",
+        render_kw={"size": 12},
         validators=[DataRequired()])
 
     date = DateField(
-        'Date',
+        "Date",
         validators=[DataRequired(), discover_valid_date])
 
     logdata = TextAreaField(
-        'LogData',
+        "LogData",
         description=(
-            '206048  20.785  100017163 * 10007#/30030 -138324 to +67724\n'
-            'or\n'
-            '22558   23.779  104304433*977#/7#-15234'),
-        render_kw={'cols': 70, 'rows': 10},
+            "206048  20.785  100017163 * 10007#/30030 -138324 to +67724\n"
+            "or\n"
+            "22558   23.779  104304433*977#/7#-15234"),
+        render_kw={"cols": 70, "rows": 10},
         validators=[DataRequired()])
 
-    submit = SubmitField('Add')
+    submit = SubmitField("Add")
 
 
-@app.route('/', methods=('GET', 'POST'))
+@app.route("/", methods=("GET", "POST"))
 def controller():
     global queue
 
     formA = GapForm()
     formB = GapLogForm()
-    which_form = request.args.get('form')
+    which_form = request.args.get("form")
 
     status = ""
     added = False
     if which_form is not None and queue.qsize() > 30:
         return "Long queue try again later"
 
-    if   which_form == 'A' and formA.validate_on_submit():
+    if   which_form == "A" and formA.validate_on_submit():
         added, status = possible_add_to_queue_form(formA)
-    elif which_form == 'B' and formB.validate_on_submit():
+    elif which_form == "B" and formB.validate_on_submit():
         added, status = possible_add_to_queue_log(formB)
 
     queued = queue.qsize()
@@ -465,7 +467,7 @@ def controller():
         formB.errors.clear()
 
     return render_template(
-        'record-check.html',
+        "record-check.html",
         formA=formA,
         formB=formB,
         added=added,
@@ -474,14 +476,15 @@ def controller():
         queue=queue_data,
     )
 
-@app.route('/status')
+
+@app.route("/status")
 def status():
     global new_records, recent, queue, worker
 
     queue_data = [k[2] for k in queue.queue]
     queued = len(queue_data)
     return render_template(
-        'status.html',
+        "status.html",
         running=worker.is_alive(),
         new_records=new_records,
         recent=recent,
@@ -489,7 +492,7 @@ def status():
         queued=queued)
 
 
-@app.route('/validate-gap')
+@app.route("/validate-gap")
 def stream():
     def gap_status_stream():
         global queue, current
@@ -502,9 +505,11 @@ def stream():
             state = "Queue {}: {}:".format(queued, current)
             yield "data: " + state + "\n\n"
             time.sleep(1)
-        yield 'data: Done (refresh to see recent status)'
 
-    return Response(gap_status_stream(), mimetype='text/event-stream')
+        yield "data: Done (refresh to see recent status)\n\n"
+        time.sleep(1)
+
+    return Response(gap_status_stream(), mimetype="text/event-stream")
 
 
 if __name__ == "__main__":
@@ -513,9 +518,9 @@ if __name__ == "__main__":
     worker.start()
 
     app.run(
-        host='0.0.0.0',
-        #host = '::',
+        host="0.0.0.0",
+        # host = "::",
         port=5090,
-        #debug=False,
+        # debug=False,
         debug=True,
     )
