@@ -54,7 +54,9 @@ def gap_worker():
         current = None
         # Blocks without busy wait
         queue.not_empty.acquire()
-        queue.not_empty.wait()
+        if queue._qsize() == 0:
+            print ("Worker waiting for not_empty")
+            queue.not_empty.wait()
         queue_0 = queue.queue[0]
         queue.not_empty.release()
 
@@ -67,6 +69,7 @@ def gap_worker():
 
         popped = queue.get()
         assert popped == queue_0
+        current = "Postprocessing {}".format(popped[0])
 
         if not success:
             recent.append((gap_size, human, status))
@@ -99,7 +102,7 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     global current
 
     tests = 0
-    current = (gap_size, 0, tests)
+    current = "Testing {}".format(gap_size)
 
     if not gmpy2.is_prime(start):
         return False, "start not prime"
@@ -108,7 +111,8 @@ def test_one(gap_size, start, line_fmt, sql_insert):
         return False, "end not prime"
 
     tests += 2
-    current = (gap_size, 0, tests)
+    current = "Testing {}, {}/{} done, {} PRPs performed".format(
+        gap_size, 2, gap_size, tests)
 
     composite = [False for i in range(gap_size+1)]
     primes = [True for i in range(SIEVE_PRIMES+1)]
@@ -133,7 +137,8 @@ def test_one(gap_size, start, line_fmt, sql_insert):
             return False, "start + {} is prime".format(k)
 
         tests += 1
-        current = (gap_size, k, tests)
+        current = "Testing {}, {}/{} done, {} PRPs performed".format(
+            gap_size, k+1, gap_size, tests)
 
     return True, "Verified"
 
@@ -471,7 +476,7 @@ def controller():
 
 @app.route('/status')
 def status():
-    global new_records, recent, queue, current, worker
+    global new_records, recent, queue, worker
 
     queue_data = [k[2] for k in queue.queue]
     queued = len(queue_data)
@@ -481,20 +486,20 @@ def status():
         new_records=new_records,
         recent=recent,
         queue=queue_data,
-        current=current,
         queued=queued)
 
 
 @app.route('/validate-gap')
 def stream():
     def gap_status_stream():
-        global queue
+        global queue, current
 
-        queued = queue.qsize()
-        while queued:
+        for i in range(3600):
             queued = queue.qsize()
-            state = "Queue {}: Currently Testing gap={}:".format(
-                queued, current)
+            if not queued:
+                break
+            queued = queue.qsize()
+            state = "Queue {}: {}:".format(queued, current)
             yield "data: " + state + "\n\n"
             time.sleep(1)
         yield 'data: Done (refresh to see recent status)'
