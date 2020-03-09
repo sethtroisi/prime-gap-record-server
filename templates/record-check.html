@@ -63,7 +63,7 @@
       {{ render_field(formB.logdata) }}
       <br>
       {{ render_field(formB.submit) }}
-      {{ formB.hidden_tag() }}
+      {{ render_field(formB.csrf_token) }}
     </form>
 
     <hr>
