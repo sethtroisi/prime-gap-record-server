@@ -9,9 +9,9 @@ import time
 from queue import Queue
 
 import gmpy2
-from flask import Flask, g, render_template, Response
+from flask import Flask, Response, g, render_template, request
 from flask_wtf import FlaskForm
-from wtforms import SelectField, StringField, SubmitField
+from wtforms import SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired
 from wtforms_components import IntegerField, DateField, DateRange
 
@@ -207,98 +207,99 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-def parse_start(gapstart_str):
-    if '(' in gapstart_str or ')' in gapstart_str:
+def parse_start(num_str):
+    if '(' in num_str or ')' in num_str:
         return None
-    if len(gapstart_str) > 10000:
+    if len(num_str) > 10000:
         return None
 
     # Remove whitespace from string
-    gapstart_str = re.sub(r'\s', '', gapstart_str)
+    num_str = re.sub(r'\s', '', num_str)
 
-    for generation in range(100):
+    for generation in range(20):
         # Parse Exponents
-        match = re.search(r'([0-9]+)\^([0-9]+)', gapstart_str)
-        if match:
-            base, exp = map(int, match.groups())
-            if gmpy2.log(base) * exp > 10100:
-                return REALLY_LARGE
-            result = base ** exp
-            gapstart_str = gapstart_str.replace(match.group(0), str(result))
-            continue
-
-        match = re.search(r'([0-9]+)#', gapstart_str)
-        if match:
-            p = int(match.group(1))
-            if p > 20000:
-                return REALLY_LARGE
-            result = gmpy2.primorial(p)
-            gapstart_str = gapstart_str.replace(match.group(0), str(result))
-            continue
-
-        match = re.search(r'([0-9]+)([/*])([0-9]+)', gapstart_str)
-        if match:
-            a, sign, b = match.groups()
-            a_n = int(a)
-            b_n = int(b)
-            if sign == '*':
-                if len(a) + len(b) > 10100:
+        if '^' in num_str:
+            match = re.search(r'(\d+)\^(\d+)', num_str)
+            if match:
+                base, exp = map(int, match.groups())
+                if gmpy2.log(base) * exp > 10100:
                     return REALLY_LARGE
-                result = a_n * b_n
-            elif sign == '/':
-                if b_n == 0 or a_n % b_n != 0:
+                result = base ** exp
+                num_str = num_str.replace(match.group(0), str(result))
+                continue
+
+        if '#' in num_str:
+            match = re.search(r'(\d+)#', num_str)
+            if match:
+                p = int(match.group(1))
+                if p > 20000:
+                    return REALLY_LARGE
+                result = gmpy2.primorial(p)
+                num_str = num_str.replace(match.group(0), str(result))
+                continue
+
+        if '*' in num_str or '/' in num_str:
+            match = re.search(r'(\d+)([/*])(\d+)', num_str)
+            if match:
+                a, sign, b = match.groups()
+                a_n = int(a)
+                b_n = int(b)
+                if sign == '*':
+                    if len(a) + len(b) > 10100:
+                        return REALLY_LARGE
+                    result = a_n * b_n
+                elif sign == '/':
+                    if b_n == 0 or a_n % b_n != 0:
+                        return None
+                    result = a_n // b_n
+                else:
                     return None
-                result = a_n // b_n
-            else:
-                return None
-            gapstart_str = gapstart_str.replace(match.group(0), str(result))
-            continue
+                num_str = num_str.replace(match.group(0), str(result))
+                continue
 
-        match = re.search(r'([0-9]+)([+-])([0-9]+)', gapstart_str)
-        if match:
-            a, sign, b = match.groups()
-            a_n = int(a)
-            b_n = int(b)
-            if sign == '+':
-                result = a_n + b_n
-            elif sign == '-':
-                result = a_n - b_n
-            else:
-                return None
-            gapstart_str = gapstart_str.replace(match.group(0), str(result))
-            continue
+        if '+' in num_str or '-' in num_str:
+            match = re.search(r'([0-9]+)([+-])([0-9]+)', num_str)
+            if match:
+                a, sign, b = match.groups()
+                a_n = int(a)
+                b_n = int(b)
+                if sign == '+':
+                    result = a_n + b_n
+                elif sign == '-':
+                    result = a_n - b_n
+                else:
+                    return None
+                num_str = num_str.replace(match.group(0), str(result))
+                continue
 
-        if re.search(r'^[0-9]+$', gapstart_str):
-            return int(gapstart_str)
+        if re.search(r'^[0-9]+$', num_str):
+            return int(num_str)
 
     return None
 
-
-def possible_add_to_queue(form):
-    gap_size = int(form.gapsize.data)
-    gap_start = form.gapstart.data.replace(' ', '')
-
+def possible_add_to_queue(
+        gap_size, gap_start,
+        ccc_type, discoverer,
+        discover_date):
     if gap_size % 2 == 1:
         return False, "Odd gapsize is unlikely"
     if gap_size <= 1200:
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
 
+    gap_start = gap_start.replace(' ', '')
     if any(gap_start in line for line in new_records):
         return False, "Already added to records"
-
     if any(k[0] == gap_size for k in queue.queue):
         return True, "Already in queue"
 
-    db = get_db()
-    rv = list(db.execute(
+    rv = list(get_db().execute(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
         (gap_size,)))
     assert len(rv) in (0, 1), [tuple(r) for r in rv]
-    if len(rv):
-        e_merit, e_startprime = rv[0]
-    else:
-        e_merit, e_startprime = 0, 0
+    if len(rv) == 0:
+        rv.append([0, 0])
+    e_merit, e_startprime = rv[0]
 
     start_n = parse_start(gap_start)
     if start_n is None:
@@ -307,7 +308,6 @@ def possible_add_to_queue(form):
         return False, err_msg
     if start_n >= REALLY_LARGE:
         return False, "gapstart={} is to large at this time".format(gap_start)
-
     if start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
 
@@ -321,22 +321,50 @@ def possible_add_to_queue(form):
     primedigits = len(str(start_n))
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
-        gap_size,
-        form.ccc.data,
-        newmerit_fmt,
-        form.discoverer.data,
-        form.date.data.isoformat(),
-        primedigits,
-        gap_start)
+        gap_size, ccc_type, newmerit_fmt, discoverer,
+        discover_date.isoformat(), primedigits, gap_start)
 
-    year = form.date.data.year
+    year = discover_date.year
     assert 2015 <= year <= 2024, year
-    sql_insert = (gap_size, 0) + tuple(form.ccc.data) + (
-        form.discoverer.data, year, newmerit_fmt, primedigits, gap_start)
+    sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
+        year, newmerit_fmt, primedigits, gap_start)
 
     queue.put((gap_size, start_n, line_fmt, sql_insert))
     return True, "Adding {} gapsize={} to queue, would improve merit {:.3f} to {:.3f}".format(
         short_start(start_n), gap_size, e_merit, newmerit)
+
+
+def possible_add_to_queue_form(form):
+    return possible_add_to_queue(
+        form.gapsize.data, # TODO int(...) ?
+        form.gapstart.data,
+        form.ccc.data,
+        form.discoverer.data,
+        form.date.data)
+
+def possible_add_to_queue_log(form):
+    discoverer = form.discoverer.data
+    discover_date = form.date.data
+    log_data = form.logdata.data
+
+    adds = []
+    statuses = []
+    for line in log_data.split("\n"):
+        log_re = r'(\d+)\s+([0-9.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)'
+        match = re.search(log_re, line)
+        if match:
+            added, status = possible_add_to_queue(
+                int(match.group(1)),
+                match.group(3),
+                "C?P", # TODO describe this somewhere
+                discoverer,
+                discover_date)
+            adds.append(added)
+            statuses.append(status)
+        else:
+            statuses.append("Didn't find match in: " + line)
+
+    return any(adds), "\n<br>\n".join(statuses)
 
 
 class GapForm(FlaskForm):
@@ -363,7 +391,7 @@ class GapForm(FlaskForm):
 
     discoverer = StringField(
         'Discoverer',
-        render_kw={'size': 15},
+        render_kw={'size': 12},
         validators=[DataRequired()])
 
     date = DateField(
@@ -379,30 +407,65 @@ class GapForm(FlaskForm):
     submit = SubmitField('Add')
 
 
+class GapLogForm(FlaskForm):
+    discover_valid_date = DateRange(
+        min=datetime.date(2015, 1, 1),
+        max=datetime.date.today() + datetime.timedelta(hours=48))
+
+    discoverer = StringField(
+        'Discoverer',
+        render_kw={'size': 12},
+        validators=[DataRequired()])
+
+    date = DateField(
+        'Date',
+        validators=[DataRequired(), discover_valid_date])
+
+    logdata = TextAreaField(
+        'LogData',
+        description=(
+            '206048  20.7850  100017163 * 10007#/30030 -138324 to +67724'),
+        render_kw={'cols': 70, 'rows': 10},
+        validators=[DataRequired()])
+
+    submit = SubmitField('Add')
+
+
 @app.route('/', methods=('GET', 'POST'))
 def controller():
     global queue
-    form = GapForm()
+
+    formA = GapForm()
+    formB = GapLogForm()
+    which_form = request.args.get('form')
 
     status = ""
     added = False
-    if form.validate_on_submit():
-        if queue.qsize() > 10:
-            return "Long queue try again later"
-        added, status = possible_add_to_queue(form)
+    if which_form is not None and queue.qsize() > 30:
+        return "Long queue try again later"
+
+    if   which_form == 'A' and formA.validate_on_submit():
+        added, status = possible_add_to_queue_form(formA)
+    elif which_form == 'B' and formB.validate_on_submit():
+        added, status = possible_add_to_queue_log(formB)
 
     queued = queue.qsize()
     queue_data = [k[2] for k in queue.queue]
 
+    if added:
+        # Clear both errors
+        formA.errors.clear()
+        formB.errors.clear()
+
     return render_template(
         'record-check.html',
-        form=form,
+        formA=formA,
+        formB=formB,
         added=added,
         status=status,
         queued=queued,
         queue=queue_data,
     )
-
 
 @app.route('/status')
 def status():

@@ -23,6 +23,10 @@
         display: inline;
       }
 
+      h2 {
+        margin-bottom: 0
+      }
+
     </style>
 </head>
 
@@ -42,15 +46,28 @@
 
 <body id="body">
     <h2>Prime Gap Records</h2>
+    <a href={{ url_for('status') }}>status</a>
 
-    <form method="POST" id="cmdForm" action="/"><br>
-      {% for field in form %}
+    <form method="POST" action="/?form=A"><br>
+      {% for field in formA %}
         {{ render_field(field) }}
       {% endfor %}
     </form>
 
     <hr>
-    <div id="results">{{status}}</div>
+    OR
+    <form method="POST" action="/?form=B"><br>
+      {{ render_field(formB.discoverer) }}
+      {{ render_field(formB.date) }}
+      <br><br>
+      {{ render_field(formB.logdata) }}
+      <br>
+      {{ render_field(formB.submit) }}
+      {{ formB.hidden_tag() }}
+    </form>
+
+    <hr>
+    <div id="results">{{status | safe}}</div>
   {% if added %}
     <a href={{ url_for('status') }}>Watch Queue</a>
   {% endif %}
