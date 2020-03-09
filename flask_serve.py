@@ -424,7 +424,9 @@ class GapLogForm(FlaskForm):
     logdata = TextAreaField(
         'LogData',
         description=(
-            '206048  20.7850  100017163 * 10007#/30030 -138324 to +67724'),
+            '206048  20.785  100017163 * 10007#/30030 -138324 to +67724\n'
+            'or\n'
+            '22558   23.779  104304433*977#/7#-15234'),
         render_kw={'cols': 70, 'rows': 10},
         validators=[DataRequired()])
 
