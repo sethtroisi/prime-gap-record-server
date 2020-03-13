@@ -31,7 +31,7 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 REALLY_LARGE = 10 ** 10000
-SIEVE_PRIMES = 10 ** 7
+SIEVE_PRIMES = 20 * 10 ** 6
 
 
 # Globals for exchanging queue info with background thread
@@ -116,13 +116,16 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     current = "Testing {}, {}/{} done, {} PRPs performed".format(
         gap_size, 2, gap_size, tests)
 
+    # Do something smart here like gmp-devel list
+    sieve_primes = min(1000, min(SIEVE_PRIMES, gmpy2.log(start) ** 2))
+
     composite = [False for i in range(gap_size+1)]
-    primes = [True for i in range(SIEVE_PRIMES//2+1)]
-    for p in range(3, SIEVE_PRIMES):
+    primes = [True for i in range(sieve_primes//2+1)]
+    for p in range(3, sieve_primes):
         if not primes[p//2]: continue
 
         # Sieve other primes
-        for m in range(p*p//2, SIEVE_PRIMES//2+1, p):
+        for m in range(p*p//2, sieve_primes//2+1, p):
             primes[m] = False
 
         # Remove any numbers in the interval divisible by p
@@ -161,7 +164,7 @@ def update_all_sql(sql_insert):
             match = re.search(r"\(([0-9]+),", line)
             assert match
             gap = int(match.group(1))
-            if gap > sql_insert[0]:
+            if gap >= sql_insert[0]:
                 break
 
     # We have the format wrong
@@ -169,7 +172,12 @@ def update_all_sql(sql_insert):
         print("WEIRD INDEX", index)
         print(sql_lines[index])
 
-    sql_lines.insert(index, new_line)
+    if sql_insert[index] == gap:
+        print ("Replacing {}", sql_insert[index])
+        print ("With      {}", new_line)
+        sql_line[index] = new_line
+    else:
+        sql_lines.insert(index, new_line)
 
     with open(ALL_SQL_FN, "w") as f:
         for line in sql_lines:
@@ -340,8 +348,10 @@ def possible_add_to_queue(
         year, newmerit_fmt, primedigits, gap_start)
 
     queue.put((gap_size, start_n, line_fmt, sql_insert))
-    return True, "Adding {} gapsize={} to queue, would improve merit {:.3f} to {:.3f}".format(
-        short_start(start_n), gap_size, e_merit, newmerit)
+    return True, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
+        short_start(start_n), gap_size,
+        "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
+        newmerit)
 
 
 def possible_add_to_queue_form(form):
@@ -361,7 +371,32 @@ def possible_add_to_queue_log(form):
     adds = []
     statuses = []
     for line in log_data.split("\n"):
-        log_re = r"(\d+)\s+([0-9.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
+        if len(line.strip()) == 0:
+            continue
+
+        full_log_re = (r"(\d+)\s+"
+                       r"(20[12]\d-\d\d-\d\d)\s+([\w.]+\.?[\w.]*)\s+"
+                       r"([\d.]+)\s+"
+                       r"(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)")
+        match = re.search(full_log_re, line)
+        if match:
+            if discoverer.lower() != "file":
+                statuses.append("Must set discoverer=file to use full line format")
+                continue
+            else:
+                line_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
+                line_discoverer = match.group(3)
+                added, status = possible_add_to_queue(
+                    int(match.group(1)),
+                    match.group(5),
+                    "C?P",  # TODO describe this somewhere
+                    line_discoverer,
+                    line_date)
+                adds.append(added)
+                statuses.append(status)
+                continue
+
+        log_re = r"(\d+)\s+([\d.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
         match = re.search(log_re, line)
         if match:
             added, status = possible_add_to_queue(
@@ -372,8 +407,9 @@ def possible_add_to_queue_log(form):
                 discover_date)
             adds.append(added)
             statuses.append(status)
-        else:
-            statuses.append("Didn't find match in: " + line)
+            continue
+
+        statuses.append("Didn't find match in: " + line)
 
     return any(adds), "\n<br>\n".join(statuses)
 
@@ -437,7 +473,10 @@ class GapLogForm(FlaskForm):
         description=(
             "206048  20.785  100017163 * 10007#/30030 -138324 to +67724\n"
             "or\n"
-            "22558   23.779  104304433*977#/7#-15234"),
+            "22558   23.779  104304433*977#/7#-15234"
+            "or\n"
+            "2074 2019-09-25 M.Jansen 28.311600 3513398427*71#/30030 - 1532\n"
+        ),
         render_kw={"cols": 70, "rows": 10},
         validators=[DataRequired()])
 

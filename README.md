@@ -17,4 +17,7 @@ git config --global user.email
 
 ### TODO
 
+* [ ] Replace line in allgaps.sql if record already exists
 * [ ] Figure out out how to correctly compute merit for existing records.
+* [ ] Bundle same discovere for batch
+* [x] Scroll areas in status
