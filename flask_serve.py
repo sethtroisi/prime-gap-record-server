@@ -233,65 +233,24 @@ def parse_start(num_str):
     # Remove whitespace from string
     num_str = re.sub(r"\s", "", num_str)
 
-    for generation in range(20):
-        # Parse Exponents
-        if "^" in num_str:
-            match = re.search(r"(\d+)\^(\d+)", num_str)
-            if match:
-                base, exp = map(int, match.groups())
-                if gmpy2.log(base) * exp > 10100:
-                    return REALLY_LARGE
-                result = base ** exp
-                num_str = num_str.replace(match.group(0), str(result))
-                continue
+    # Generally follows this form
+    match = re.search(r"(\d+)\*(\d+#)/(\d+)(#?)\-(\d+)")
+    if match:
+        if any(len(v) > 100 for v in match.groups()):
+            return REALLY_LARGE
+        m, p, d, a = map(int, match.groups())
 
-        if "#" in num_str:
-            match = re.search(r"(\d+)#", num_str)
-            if match:
-                p = int(match.group(1))
-                if p > 20000:
-                    return REALLY_LARGE
-                result = gmpy2.primorial(p)
-                num_str = num_str.replace(match.group(0), str(result))
-                continue
+        # Check if p will be > REALLY_LARGE
+        if p > 20000:
+            return REALLY_LARGE
+        if p < 50:
+            return None
 
-        if "*" in num_str or "/" in num_str:
-            match = re.search(r"(\d+)([/*])(\d+)", num_str)
-            if match:
-                a, sign, b = match.groups()
-                a_n = int(a)
-                b_n = int(b)
-                if sign == "*":
-                    if len(a) + len(b) > 10100:
-                        return REALLY_LARGE
-                    result = a_n * b_n
-                elif sign == "/":
-                    if b_n == 0 or a_n % b_n != 0:
-                        return None
-                    result = a_n // b_n
-                else:
-                    return None
-                num_str = num_str.replace(match.group(0), str(result))
-                continue
+        t = m * gmpy2.primorial(p)
+        if t % d != 0:
+            return None
 
-        if "+" in num_str or "-" in num_str:
-            match = re.search(r"([0-9]+)([+-])([0-9]+)", num_str)
-            if match:
-                a, sign, b = match.groups()
-                a_n = int(a)
-                b_n = int(b)
-                if sign == "+":
-                    result = a_n + b_n
-                elif sign == "-":
-                    result = a_n - b_n
-                else:
-                    return None
-                num_str = num_str.replace(match.group(0), str(result))
-                continue
-
-        if re.search(r"^[0-9]+$", num_str):
-            return int(num_str)
-
+        return t // d - a
     return None
 
 
