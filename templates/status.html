@@ -22,6 +22,15 @@
       var resultdiv = document.getElementById("results");
         var eventSource = new EventSource("{{ url_for('stream') }}");
         eventSource.onmessage = function(e) {
+          if (Math.random() < 0.02) {
+            // Truncate out some PRP messages
+            var a = resultdiv.innerHTML.split("<br>");
+            var b = a.filter(function(line, i) {
+              return i < 10 || !line.match(/PRPs perf/) || Math.random() > 0.5;
+            });
+            console.log("Filtering ", a.length, " messages to ", b.length);
+            resultdiv.innerHTML = b.join("<br>");
+          }
           resultdiv.innerHTML = e.data + "\n<br>\n" + resultdiv.innerHTML;
         };
         eventSource.onerror = function(e) {
@@ -31,7 +40,10 @@
 </script>
 
 <body id="body">
-    <h1>Prime Gap Status</h1>
+    <h1>
+      Prime Gap Status
+      <a href="https://github.com/sethtroisi/prime-gap-list/commits/master">(prime-gap-list)</a>
+    </h1>
     <div>
       Worker Status:
       {% if running %}
@@ -57,8 +69,8 @@
     <hr>
 
     {% if recent %}
+      <h2>Recent records checked</h2>
       <div id="recent" class="scroll-area">
-        <h2>Recent records checked</h2>
       {% for r in recent | reverse %}
         <div>{{ r }}</div>
       {% endfor %}
@@ -66,13 +78,13 @@
       <hr>
     {% endif %}
 
-    <div id="records" class="scroll-area">
     {% if new_records %}
       <h2>New Records</h2>
-    {% for r in new_records %}
-      <div>{{ r }}</div>
-    {% endfor %}
+      <div id="records" class="scroll-area">
+      {% for r in new_records %}
+        <div>{{ r }}</div>
+      {% endfor %}
+      </div>
     {% endif %}
-    </div>
 </body>
 </html>
