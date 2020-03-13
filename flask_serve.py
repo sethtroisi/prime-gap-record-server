@@ -78,8 +78,8 @@ def gap_worker():
             recent.append((gap_size, human, status))
             new_records.append(line_fmt)
 
-            print(line_fmt)
-            print(sql_insert)
+            print("\tline:", line_fmt)
+            print("\t sql:", sql_insert)
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -155,6 +155,8 @@ def update_all_sql(sql_insert):
     with open(ALL_SQL_FN, "r") as f:
         sql_lines = f.readlines()
 
+    assert 110 < len(sql_lines) < 100000, len(sql_lines)
+
     new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(" ", "") + "\n"
 
     # Find the right place in the insert section
@@ -172,10 +174,11 @@ def update_all_sql(sql_insert):
         print("WEIRD INDEX", index)
         print(sql_lines[index])
 
-    if sql_insert[index] == gap:
-        print ("Replacing {}", sql_insert[index])
-        print ("With      {}", new_line)
-        sql_line[index] = new_line
+    print ("index:", index, len(sql_insert))
+    if 'VALUES({},'.format(gap) in sql_lines[index]:
+        print ("  Replacing ", sql_lines[index])
+        print ("  With      ", new_line)
+        sql_lines[index] = new_line
     else:
         sql_lines.insert(index, new_line)
 
@@ -191,7 +194,7 @@ def update_all_sql(sql_insert):
             sql_insert[0], sql_insert[7], sql_insert[5])
 
         subprocess.check_call(["git", "commit", "-am", commit_msg])
-        subprocess.check_call(["git", "push", "safe"])
+#        subprocess.check_call(["git", "push", "safe"])
     except Exception as e:
         print("Error!", e)
     os.chdir(wd)
@@ -234,17 +237,22 @@ def parse_start(num_str):
     num_str = re.sub(r"\s", "", num_str)
 
     # Generally follows this form
-    match = re.search(r"(\d+)\*(\d+#)/(\d+)(#?)\-(\d+)")
+    match = re.search(r"(\d+)\*(\d+)#/(\d+)(#?)\-(\d+)", num_str)
     if match:
         if any(len(v) > 100 for v in match.groups()):
             return REALLY_LARGE
-        m, p, d, a = map(int, match.groups())
+        m, p, d, dp, a = match.groups()
+        m, p, d, a = map(int, (m, p, d, a))
 
         # Check if p will be > REALLY_LARGE
         if p > 20000:
             return REALLY_LARGE
         if p < 50:
             return None
+
+        d = d
+        if dp == '#':
+            d = gmpy2.primorial(d)
 
         t = m * gmpy2.primorial(p)
         if t % d != 0:
@@ -334,7 +342,7 @@ def possible_add_to_queue_log(form):
             continue
 
         full_log_re = (r"(\d+)\s+"
-                       r"(20[12]\d-\d\d-\d\d)\s+([\w.]+\.?[\w.]*)\s+"
+                       r"(20[12]\d-\d\d?-\d\d?)\s+([\w.]+\.?[\w.]*)\s+"
                        r"([\d.]+)\s+"
                        r"(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)")
         match = re.search(full_log_re, line)
