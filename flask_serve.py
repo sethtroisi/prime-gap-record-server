@@ -157,7 +157,7 @@ def update_all_sql(sql_insert):
 
     assert 110 < len(sql_lines) < 100000, len(sql_lines)
 
-    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(" ", "") + "\n"
+    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(" ", "") + ";\n"
 
     # Find the right place in the insert section
     for index, line in enumerate(sql_lines):
@@ -169,19 +169,20 @@ def update_all_sql(sql_insert):
             if gap >= sql_insert[0]:
                 break
 
-    # We have the format wrong
-    if not (100 < index < 90000):
-        print("WEIRD INDEX", index)
-        print(sql_lines[index])
+    # Format is wrong
+    assert (100 < index < 90000), ("WEIRD INDEX", index, new_line)
 
-    print ("index:", index, len(sql_insert))
-    if 'VALUES({},'.format(gap) in sql_lines[index]:
-        print ("  Replacing ", sql_lines[index])
-        print ("  With      ", new_line)
+    replace =
+    start_insert_line = SQL_INSERT_PREFIX + "(" + str(sql_insert[0])
+    replace = start_insert_line in sql_lines[index]
+    if replace:
+        print ("  Replacing ", sql_lines[index].strip())
+        print ("  With      ", new_line.strip())
         sql_lines[index] = new_line
     else:
         sql_lines.insert(index, new_line)
 
+    # Write file back out (slow to do each time, but unavoidable?)
     with open(ALL_SQL_FN, "w") as f:
         for line in sql_lines:
             f.write(line)
@@ -190,7 +191,8 @@ def update_all_sql(sql_insert):
     try:
         os.chdir("prime-gap-list")
 
-        commit_msg = "New Record {} merit={} uploaded by {}".format(
+        commit_msg = "New Record {} merit={} found by {}".format(
+            "Improved" if replace else "New Record",
             sql_insert[0], sql_insert[7], sql_insert[5])
 
         subprocess.check_call(["git", "commit", "-am", commit_msg])
@@ -497,7 +499,7 @@ def status():
         "status.html",
         running=worker.is_alive(),
         new_records=new_records,
-        recent=recent,
+        recent=recent[-50:],
         queue=queue_data,
         queued=queued)
 
