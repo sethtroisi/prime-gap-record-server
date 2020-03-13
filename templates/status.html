@@ -3,9 +3,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Records Queue</title>
     <style>
-      #results {
+      .scroll-area, #results {
         max-height: 400px;
-        overflow: scroll;
+        max-width: 97%;
+        overflow-y: scroll;
       }
 
       h1 {
@@ -44,24 +45,6 @@
       {% endif %}
     </div>
 
-    <div id="records">
-    {% if new_records %}
-      <h2>New Records</h2>
-    {% for r in new_records %}
-      <div>{{ r }}</div>
-    {% endfor %}
-    {% endif %}
-    </div>
-
-    <div id="recent">
-    {% if recent %}
-      <h2>Recent records checked</h2>
-    {% for r in recent %}
-      <div>{{ r }}</div>
-    {% endfor %}
-    {% endif %}
-    </div>
-
     <div id="queue">
       <h2>{{queued}} Queued</h2>
     {% for line in queue %}
@@ -69,9 +52,27 @@
     {% endfor %}
     </div>
 
-    <hr>
     <h2>Queue</h2>
     <div id="results">{{status}}</div>
     <hr>
+
+    {% if recent %}
+      <div id="recent" class="scroll-area">
+        <h2>Recent records checked</h2>
+      {% for r in recent | reverse %}
+        <div>{{ r }}</div>
+      {% endfor %}
+      </div>
+      <hr>
+    {% endif %}
+
+    <div id="records" class="scroll-area">
+    {% if new_records %}
+      <h2>New Records</h2>
+    {% for r in new_records %}
+      <div>{{ r }}</div>
+    {% endfor %}
+    {% endif %}
+    </div>
 </body>
 </html>
