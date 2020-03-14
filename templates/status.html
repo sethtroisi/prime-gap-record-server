@@ -6,7 +6,7 @@
       .scroll-area, #results {
         max-height: 400px;
         max-width: 97%;
-        overflow-y: scroll;
+        overflow-y: auto;
       }
 
       h1 {
@@ -57,12 +57,14 @@
       {% endif %}
     </div>
 
-    <div id="queue">
-      <h2>{{queued}} Queued</h2>
-    {% for line in queue %}
-      <div>{{ line }}</div>
-    {% endfor %}
-    </div>
+    <h2>{{queued}} Queued</h2>
+    {% if queue %}
+      <div id="queue" class="scroll-area">
+      {% for line in queue %}
+        <div>{{ line }}</div>
+      {% endfor %}
+      </div>
+    {% endif %}
 
     <h2>Queue</h2>
     <div id="results">{{status}}</div>
