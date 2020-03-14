@@ -31,7 +31,7 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 REALLY_LARGE = 10 ** 10000
-SIEVE_PRIMES = 20 * 10 ** 6
+SIEVE_PRIMES = 40 * 10 ** 6
 
 
 # Globals for exchanging queue info with background thread
@@ -101,8 +101,7 @@ def gap_worker():
             recent.append((gap_size, human, status))
             new_records.append(line_fmt)
 
-            print("  line:", line_fmt)
-            print("   sql:", sql_insert)
+            print("       line:", line_fmt)
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -154,6 +153,10 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     tests += 2
     current = "Testing {}, {}/{} done, {} PRPs performed".format(
         gap_size, 2, gap_size, tests)
+
+    # TODO use gmpy2.next_prime()
+    #   pros: faster (~2x)
+    #   cons: no status (maybe create timestamp somewhere)
 
     # Do something smart here like gmp-devel list
     sieve_primes = min(1000, min(SIEVE_PRIMES, gmpy2.log(start) ** 2))
@@ -317,7 +320,11 @@ def possible_add_to_queue(
     gap_start = gap_start.replace(" ", "")
     if any(gap_start in line for line in new_records):
         return False, "Already added to records"
-    if any(k[1] == gap_size for k in queue.queue):
+
+    queue.mutex.acquire()
+    in_queue = any(k[1] == gap_size for k in queue.queue)
+    queue.mutex.release()
+    if in_queue:
         return True, "Already in queue"
 
     rv = list(get_db().execute(
@@ -564,7 +571,7 @@ def stream():
             queued = queue.qsize()
             state = "Queue {}: {}".format(queued, current)
             yield "data: " + state + "\n\n"
-            time.sleep(1)
+            time.sleep(5)
 
         yield "data: Done (refresh to see recent status)\n\n"
 
