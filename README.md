@@ -18,6 +18,6 @@ git config --global user.email
 ### TODO
 
 * [ ] Figure out out how to correctly compute merit for existing records.
-* [ ] Bundle same discoverer into batches
+* [x] Bundle same discoverer into batches
 * [x] Replace line in allgaps.sql if record already exists
 * [x] Scroll areas in status

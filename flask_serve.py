@@ -35,20 +35,35 @@ SIEVE_PRIMES = 20 * 10 ** 6
 
 
 # Globals for exchanging queue info with background thread
+
+# Worker thread
+worker = None
+
+# gap_size, start, batch_num, line_fmt, sql_insert
+queue = Queue()
+
+# current status
+current = None
+
+# list of (gapsize, human-readable start, status)
+recent = []
+
+# Records uploaded via this tool
+# list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
 new_records = []
 if os.path.isfile(RECORDS_FN):
     with open(RECORDS_FN, "r") as f:
         new_records = f.readlines()
-recent = []
-queue = Queue()
-current = None
-worker = None
+
+#--------------------
 
 
 def gap_worker():
     global new_records, recent, queue, current
 
     print("Gap Worker running")
+
+    batch_messages = []
 
     while True:
         current = None
@@ -57,10 +72,13 @@ def gap_worker():
         if queue._qsize() == 0:
             print("Worker waiting for not_empty")
             queue.not_empty.wait()
+            # Helps with grouping batch
+            time.sleep(0.1)
+
         queue_0 = queue.queue[0]
         queue.not_empty.release()
 
-        gap_size, start, line_fmt, sql_insert = queue_0
+        batch_num, gap_size, start, line_fmt, sql_insert = queue_0
         human = sql_insert[-1]
 
         start_t = time.time()
@@ -69,7 +87,12 @@ def gap_worker():
 
         popped = queue.get()
         assert popped == queue_0
-        current = "Postprocessing {}".format(popped[0])
+
+        more_in_batch = len(queue.queue) > 0 and queue.queue[0][0] == batch_num
+
+        current = "Postprocessing{} {}".format(
+            " batch" if more_in_batch else "",
+            gap_size)
 
         if not success:
             recent.append((gap_size, human, status))
@@ -78,21 +101,37 @@ def gap_worker():
             recent.append((gap_size, human, status))
             new_records.append(line_fmt)
 
-            print("\tline:", line_fmt)
-            print("\t sql:", sql_insert)
+            print("  line:", line_fmt)
+            print("   sql:", sql_insert)
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
                 f.write(line_fmt + "\n")
 
             # Write to allgaps.sql (sorted), kinda slow
-            update_all_sql(sql_insert)
+            replace = update_all_sql(sql_insert)
+
+            commit_msg = "{} record {} merit={} found by {}".format(
+                "Improved" if replace else "New",
+                sql_insert[0], sql_insert[7], sql_insert[5])
+            batch_messages.append(commit_msg)
+
+            if not more_in_batch:
+                if len(batch_messages) == 1:
+                    commit_msg = batch_messages[0]
+                else:
+                    # TODO What to do if author not the same
+                    header = "{} Records | First {}\n".format(
+                        len(batch_messages), batch_messages[0])
+                    commit_msg = "\n".join([header] + batch_messages)
+                git_commit_and_push(commit_msg)
+                batch_messages = []
+                print("\n")
 
             # Write to gaps.db
             with open_db() as db:
                 # Delete any existing gap
                 db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
-
                 # Insert new gap into db
                 db.execute(SQL_INSERT_PREFIX + str(sql_insert))
                 db.commit()
@@ -172,7 +211,6 @@ def update_all_sql(sql_insert):
     # Format is wrong
     assert (100 < index < 90000), ("WEIRD INDEX", index, new_line)
 
-    replace =
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(sql_insert[0])
     replace = start_insert_line in sql_lines[index]
     if replace:
@@ -187,16 +225,17 @@ def update_all_sql(sql_insert):
         for line in sql_lines:
             f.write(line)
 
+    return replace
+
+
+def git_commit_and_push(commit_msg):
     wd = os.getcwd()
     try:
         os.chdir("prime-gap-list")
 
-        commit_msg = "New Record {} merit={} found by {}".format(
-            "Improved" if replace else "New Record",
-            sql_insert[0], sql_insert[7], sql_insert[5])
-
-        subprocess.check_call(["git", "commit", "-am", commit_msg])
-#        subprocess.check_call(["git", "push", "safe"])
+        subprocess.check_output(["git", "commit", "-am", commit_msg])
+        subprocess.check_output(["git", "push", "safe"])
+        print()
     except Exception as e:
         print("Error!", e)
     os.chdir(wd)
@@ -260,11 +299,12 @@ def parse_start(num_str):
         if t % d != 0:
             return None
 
-        return t // d - a
+        return int(t // d - a)
     return None
 
 
 def possible_add_to_queue(
+        batch_num,
         gap_size, gap_start,
         ccc_type, discoverer,
         discover_date):
@@ -277,7 +317,7 @@ def possible_add_to_queue(
     gap_start = gap_start.replace(" ", "")
     if any(gap_start in line for line in new_records):
         return False, "Already added to records"
-    if any(k[0] == gap_size for k in queue.queue):
+    if any(k[1] == gap_size for k in queue.queue):
         return True, "Already in queue"
 
     rv = list(get_db().execute(
@@ -316,7 +356,7 @@ def possible_add_to_queue(
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
-    queue.put((gap_size, start_n, line_fmt, sql_insert))
+    queue.put((batch_num, gap_size, start_n, line_fmt, sql_insert))
     return True, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
         "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
@@ -325,6 +365,7 @@ def possible_add_to_queue(
 
 def possible_add_to_queue_form(form):
     return possible_add_to_queue(
+        form.gapstart.data,
         form.gapsize.data,
         form.gapstart.data,
         form.ccc.data,
@@ -334,8 +375,10 @@ def possible_add_to_queue_form(form):
 
 def possible_add_to_queue_log(form):
     discoverer = form.discoverer.data
-    discover_date = form.date.data
     log_data = form.logdata.data
+
+    # How to choice this better?
+    batch_num = abs(hash(discoverer) + hash(log_data))
 
     adds = []
     statuses = []
@@ -354,12 +397,12 @@ def possible_add_to_queue_log(form):
                 continue
             else:
                 line_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
-                line_discoverer = match.group(3)
                 added, status = possible_add_to_queue(
+                    batch_num,
                     int(match.group(1)),
                     match.group(5),
                     "C?P",  # TODO describe this somewhere
-                    line_discoverer,
+                    match.group(3),
                     line_date)
                 adds.append(added)
                 statuses.append(status)
@@ -368,7 +411,9 @@ def possible_add_to_queue_log(form):
         log_re = r"(\d+)\s+([\d.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
         match = re.search(log_re, line)
         if match:
+            discover_date = form.date.data
             added, status = possible_add_to_queue(
+                batch_num,
                 int(match.group(1)),
                 match.group(3),
                 "C?P",  # TODO describe this somewhere
@@ -471,7 +516,7 @@ def controller():
         added, status = possible_add_to_queue_log(formB)
 
     queued = queue.qsize()
-    queue_data = [k[2] for k in queue.queue]
+    queue_data = [k[3] for k in queue.queue]
 
     if added:
         # Clear both errors
@@ -493,7 +538,7 @@ def controller():
 def status():
     global new_records, recent, queue, worker
 
-    queue_data = [k[2] for k in queue.queue]
+    queue_data = [k[3] for k in queue.queue]
     queued = len(queue_data)
     return render_template(
         "status.html",
