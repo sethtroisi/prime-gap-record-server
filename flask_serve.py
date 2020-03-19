@@ -82,7 +82,8 @@ def gap_worker():
         human = sql_insert[-1]
 
         start_t = time.time()
-        success, status = test_one(gap_size, start, line_fmt, sql_insert)
+        discoverer = sql_insert[5]
+        success, status = test_one(gap_size, start, discoverer)
         end_t = time.time()
 
         popped = queue.get()
@@ -112,7 +113,7 @@ def gap_worker():
 
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
-                sql_insert[0], sql_insert[7], sql_insert[5])
+                sql_insert[0], sql_insert[7], discoverer)
             batch_messages.append(commit_msg)
 
             if not more_in_batch:
@@ -136,7 +137,7 @@ def gap_worker():
                 db.commit()
 
 
-def test_one(gap_size, start, line_fmt, sql_insert):
+def test_one(gap_size, start, discoverer):
     global current
 
     tests = 0
@@ -159,7 +160,8 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     #   cons: no status (maybe create timestamp somewhere)
 
     # Do something smart here like gmp-devel list
-    sieve_primes = min(1000, min(SIEVE_PRIMES, gmpy2.log(start) ** 2))
+    log_n = gmpy2.log(start)
+    sieve_primes = min(1000, min(SIEVE_PRIMES, log_n ** 2))
 
     composite = [False for i in range(gap_size+1)]
     primes = [True for i in range(sieve_primes//2+1)]
@@ -179,8 +181,19 @@ def test_one(gap_size, start, line_fmt, sql_insert):
     # Endpoints have been verified prime, something is very wrong.
     assert composite[0] is False and composite[-1] is False
 
+    # TODO: Do something better here based on name, size...
+    merit = gap_size / log_n
+    skip_fraction = 0
+    if log_n > 4000 and merit < 25:
+        # More trusted discoverers
+        if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
+            skip_fraction = 0.97
+
     for k in range(2, gap_size, 2):
         if composite[k]: continue
+
+        if skip_fraction > 0 and random.random() < skip_fraction:
+            continue
 
         if gmpy2.is_prime(start + k):
             return False, "start + {} is prime".format(k)
@@ -364,6 +377,7 @@ def possible_add_to_queue(
         year, newmerit_fmt, primedigits, gap_start)
 
     queue.put((batch_num, gap_size, start_n, line_fmt, sql_insert))
+
     return True, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
         "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
