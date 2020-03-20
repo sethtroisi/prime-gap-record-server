@@ -4,9 +4,17 @@
     <title>Records Queue</title>
     <style>
       .scroll-area, #results {
-        max-height: 400px;
-        max-width: 97%;
+        max-height: 330px;
+        max-width: 630px;
         overflow-y: auto;
+        overflow-x: auto;
+      }
+      .half-col {
+        min-width: 400px;
+        max-width: 630px;
+        display: inline-block;
+        vertical-align: top;
+        margin-right: 50px;
       }
 
       h1 {
@@ -57,36 +65,47 @@
       {% endif %}
     </div>
 
-    <h2>{{queued}} Queued</h2>
-    {% if queue %}
-      <div id="queue" class="scroll-area">
-      {% for line in queue %}
-        <div>{{ line }}</div>
-      {% endfor %}
-      </div>
-    {% endif %}
+    <div>
+      <span class="half-col">
+        <h2>{{queued}} Queued</h2>
+        {% if queue %}
+          <div id="queue" class="scroll-area">
+          {% for line in queue %}
+            <div>{{ line }}</div>
+          {% endfor %}
+          </div>
+        {% endif %}
+      </span>
 
-    <h2>Queue</h2>
-    <div id="results">{{status}}</div>
-    <hr>
-
-    {% if recent %}
-      <h2>Recent records checked</h2>
-      <div id="recent" class="scroll-area">
-      {% for r in recent | reverse %}
-        <div>{{ r }}</div>
-      {% endfor %}
-      </div>
+      {% if queue %}
+      <span class="half-col">
+        <h2>Queue</h2>
+        <div id="results">{{status}}</div>
+      </span>
+      {% endif %}
       <hr>
-    {% endif %}
+    </div>
 
-    {% if new_records %}
-      <h2>New Records</h2>
-      <div id="records" class="scroll-area">
-      {% for r in new_records %}
-        <div>{{ r }}</div>
-      {% endfor %}
-      </div>
-    {% endif %}
+    <span class="half-col">
+      {% if recent %}
+        <h2>Recent records checked</h2>
+        <div id="recent" class="scroll-area">
+        {% for r in recent | reverse %}
+          <div>{{ r }}</div>
+        {% endfor %}
+        </div>
+        <hr>
+      {% endif %}
+    </span>
+    <span class="half-col">
+      {% if new_records %}
+        <h2>New Records</h2>
+        <div id="records" class="scroll-area">
+        {% for r in new_records %}
+          <div>{{ r }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    </span>
 </body>
 </html>
