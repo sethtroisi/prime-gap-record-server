@@ -30,7 +30,7 @@ GAPS_DB_FN = "gaps.db"
 SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
-REALLY_LARGE = 10 ** 10000
+REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 40 * 10 ** 6
 
 
@@ -38,6 +38,9 @@ SIEVE_PRIMES = 40 * 10 ** 6
 
 # Worker thread
 worker = None
+
+# Used to lock queue for bulk add
+queue_outer_lock = threading.Lock()
 
 # gap_size, start, batch_num, line_fmt, sql_insert
 queue = Queue()
@@ -72,8 +75,13 @@ def gap_worker():
         if queue._qsize() == 0:
             print("Worker waiting for not_empty")
             queue.not_empty.wait()
-            # Helps with grouping batch
-            time.sleep(0.1)
+
+        # Wait till bulk add is done to start.
+        if queue_outer_lock.locked():
+            queue.not_empty.release()
+            with queue_outer_lock:
+                # Now that bulk add is done, restart
+                continue
 
         queue_0 = queue.queue[0]
         queue.not_empty.release()
@@ -187,7 +195,7 @@ def test_one(gap_size, start, discoverer):
     if log_n > 2000 and merit < 25:
         # More trusted discoverers
         if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
-            skip_fraction = 0.97
+            skip_fraction = 0.94
 
     for k in range(2, gap_size, 2):
         if composite[k]: continue
@@ -197,6 +205,9 @@ def test_one(gap_size, start, discoverer):
 
         if gmpy2.is_prime(start + k):
             return False, "start + {} is prime".format(k)
+
+        # Make sure other thread gets scheduled
+        time.sleep(0.0001)
 
         tests += 1
         current = "Testing {}, {}/{} done, {} PRPs performed".format(
@@ -302,7 +313,7 @@ def parse_start(num_str):
         m, p, d, a = map(int, (m, p, d, a))
 
         # Check if p will be > REALLY_LARGE
-        if p > 20000:
+        if p > 25000:
             return REALLY_LARGE
         if p < 50:
             return None
@@ -432,11 +443,12 @@ def possible_add_to_queue_log(form):
             continue
         statuses.append("Didn't find match in: " + line)
 
-    adds = []
-    for size, start, who, when in line_datas:
-        added, status = possible_add_to_queue(batch_num, size, start, ccc_type, who, when)
-        adds.append(added)
-        statuses.append(status)
+    with queue_outer_lock:
+        adds = []
+        for size, start, who, when in line_datas:
+            added, status = possible_add_to_queue(batch_num, size, start, ccc_type, who, when)
+            adds.append(added)
+            statuses.append(status)
 
     return any(adds), "\n<br>\n".join(statuses)
 

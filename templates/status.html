@@ -86,20 +86,20 @@
       <hr>
     </div>
 
-    <span class="half-col">
-      {% if recent %}
-        <h2>Recent records checked</h2>
+    {% if recent %}
+      <span class="half-col">
+        <h2>Recent records checked ({{ recent | length }})</h2>
         <div id="recent" class="scroll-area">
         {% for r in recent | reverse %}
           <div>{{ r }}</div>
         {% endfor %}
         </div>
         <hr>
-      {% endif %}
-    </span>
+      </span>
+    {% endif %}
     <span class="half-col">
       {% if new_records %}
-        <h2>New Records</h2>
+        <h2>New Records ({{ new_records | length }})</h2>
         <div id="records" class="scroll-area">
         {% for r in new_records %}
           <div>{{ r }}</div>
