@@ -184,7 +184,7 @@ def test_one(gap_size, start, discoverer):
     # TODO: Do something better here based on name, size...
     merit = gap_size / log_n
     skip_fraction = 0
-    if log_n > 4000 and merit < 25:
+    if log_n > 2000 and merit < 25:
         # More trusted discoverers
         if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
             skip_fraction = 0.97
@@ -400,9 +400,12 @@ def possible_add_to_queue_log(form):
 
     # How to choice this better?
     batch_num = abs(hash(discoverer) + hash(log_data))
+    ccc_type = "C?P" # TODO describe this somewhere
 
-    adds = []
+    # Not yet checked for > previous records
+    line_datas = []
     statuses = []
+
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
             continue
@@ -418,33 +421,22 @@ def possible_add_to_queue_log(form):
                 continue
             else:
                 line_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
-                added, status = possible_add_to_queue(
-                    batch_num,
-                    int(match.group(1)),
-                    match.group(5),
-                    "C?P",  # TODO describe this somewhere
-                    match.group(3),
-                    line_date)
-                adds.append(added)
-                statuses.append(status)
+                line_datas.append((int(match.group(1)), match.group(5), match.group(3), line_date))
                 continue
 
         log_re = r"(\d+)\s+([\d.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
         match = re.search(log_re, line)
         if match:
             discover_date = form.date.data
-            added, status = possible_add_to_queue(
-                batch_num,
-                int(match.group(1)),
-                match.group(3),
-                "C?P",  # TODO describe this somewhere
-                discoverer,
-                discover_date)
-            adds.append(added)
-            statuses.append(status)
+            line_datas.append((int(match.group(1)), match.group(3), discoverer, discover_date))
             continue
-
         statuses.append("Didn't find match in: " + line)
+
+    adds = []
+    for size, start, who, when in line_datas:
+        added, status = possible_add_to_queue(batch_num, size, start, ccc_type, who, when)
+        adds.append(added)
+        statuses.append(status)
 
     return any(adds), "\n<br>\n".join(statuses)
 
@@ -528,7 +520,7 @@ def controller():
 
     status = ""
     added = False
-    if which_form is not None and queue.qsize() > 30:
+    if which_form is not None and queue.qsize() > 1000:
         return "Long queue try again later"
 
     if   which_form == "A" and formA.validate_on_submit():
