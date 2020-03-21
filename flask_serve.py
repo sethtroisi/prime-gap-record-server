@@ -86,7 +86,7 @@ def gap_worker(coord):
         batch = coord.queue.get()
         verified = []
         for index, item in enumerate(batch, 1):
-            gap_size, start, line_fmt, sql_insert = item
+            gap_size, start, _, line_fmt, sql_insert = item
             human = sql_insert[-1]
 
             batch_message = "{} of {} ".format(index, len(batch))
@@ -118,8 +118,10 @@ def gap_worker(coord):
 
         # process the batch into commit, records.
         commit_msgs = []
+        new_records = 0
+        improved_merit = 0
         for item in verified:
-            _, _, _, sql_insert = item
+            _, _, improved, _, sql_insert = item
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -127,6 +129,8 @@ def gap_worker(coord):
 
             # Write to allgaps.sql (sorted), kinda slow
             replace = update_all_sql(sql_insert)
+            new_records += not replace
+            improved_merit += improved
 
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
@@ -135,8 +139,12 @@ def gap_worker(coord):
 
         if len(commit_msgs) > 1:
             # TODO What to do if author not the same
-            header = "{} Records | First {}\n".format(
-                len(commit_msgs), commit_msgs[0])
+            header = "{} Records {} (merit +{:.2f}) gaps {} to {}\n".format(
+                len(commit_msgs),
+                "{} new gaps ".format(new_records) if new_records else "",
+                improved_merit,
+                min(item[0] for item in verified),
+                max(item[0] for item in verified))
             commit_msgs.insert(0, header)
 
         commit_msg = "\n".join(commit_msgs)
@@ -260,6 +268,9 @@ def update_all_sql(sql_insert):
 
 
 def git_commit_and_push(commit_msg):
+    # TODO verify git is clean before
+    # TODO verify commit has correct number of inserts / deletes
+
     wd = os.getcwd()
     try:
         os.chdir("prime-gap-list")
@@ -372,7 +383,8 @@ def possible_add_to_queue(
         return False, "gapstart={} is even".format(gap_start)
 
     newmerit = gap_size / gmpy2.log(start_n)
-    if newmerit <= e_merit + 0.005:
+    improved_merit = new_merit - e_merit
+    if improved_merit > 0.006:  # deal with dodgy rounding.
         return False, "Existing gap {} with better merit {:.3f} vs {:.4f}".format(
             gap_size, e_merit, newmerit)
 
@@ -389,7 +401,7 @@ def possible_add_to_queue(
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
-    item = (gap_size, start_n, line_fmt, sql_insert)
+    item = (gap_size, start_n, improved_merit, line_fmt, sql_insert)
 
     return item, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
@@ -446,7 +458,7 @@ def possible_add_to_queue_log(coord, form):
             coord.client_size.value += len(batch)
             coord.queue.put(batch)
             for item in batch:
-                coord.client_queue.append(item[2])
+                coord.client_queue.append(item[3])
 
     print("Processed {} lines to {} batch".format(
         len(line_datas), len(batch)))
