@@ -120,8 +120,7 @@ def gap_worker(coord):
         commit_msgs = []
         new_records = 0
         improved_merit = 0
-        for item in verified:
-            _, _, improved, _, sql_insert = item
+        for _, _, improved, _, sql_insert in verified:
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -138,10 +137,11 @@ def gap_worker(coord):
             commit_msgs.append(commit_msg)
 
         if len(commit_msgs) > 1:
-            # TODO What to do if author not the same
-            header = "{} Records {} (merit +{:.2f}) gaps {} to {}\n".format(
+            # TODO What to do if multiple authors?
+            header = "{} Records {}by {} (merit +{:.2f}) gaps {} to {}\n".format(
                 len(commit_msgs),
                 "{} new gaps ".format(new_records) if new_records else "",
+                discoverer,
                 improved_merit,
                 min(item[0] for item in verified),
                 max(item[0] for item in verified))
@@ -152,7 +152,7 @@ def gap_worker(coord):
 
         # Write to gaps.db
         with open_db() as db:
-            for gap_size, _, _, _ in verified:
+            for gap_size, _, _, _, _ in verified:
                 # Delete any existing gap
                 db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
                 # Insert new gap into db
@@ -382,14 +382,14 @@ def possible_add_to_queue(
     if start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
 
-    newmerit = gap_size / gmpy2.log(start_n)
+    new_merit = gap_size / gmpy2.log(start_n)
     improved_merit = new_merit - e_merit
-    if improved_merit > 0.006:  # deal with dodgy rounding.
+    if improved_merit < 0.006:  # deal with dodgy rounding.
         return False, "Existing gap {} with better merit {:.3f} vs {:.4f}".format(
-            gap_size, e_merit, newmerit)
+            gap_size, e_merit, new_merit)
 
     # Pull data from form for old style line & github entry
-    newmerit_fmt = "{:.3f}".format(newmerit)
+    newmerit_fmt = "{:.3f}".format(new_merit)
     primedigits = len(str(start_n))
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
@@ -406,7 +406,7 @@ def possible_add_to_queue(
     return item, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
         "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
-        newmerit)
+        new_merit)
 
 
 def possible_add_to_queue_log(coord, form):
@@ -444,6 +444,7 @@ def possible_add_to_queue_log(coord, form):
             discover_date = form.date.data
             line_datas.append((int(match.group(1)), match.group(3), discoverer, discover_date))
             continue
+
         statuses.append("Didn't find match in: " + line)
 
     batch = []
@@ -517,7 +518,6 @@ def controller():
     return render_template(
         "record-check.html",
         formB=formB,
-        added=added,
         status=status,
         queued=queued,
         queue=queue_data,

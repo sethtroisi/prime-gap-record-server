@@ -70,7 +70,7 @@
     </form>
 
     <hr>
-    {% if added %}
+    {% if status | length %}
     <span class="half-col">
       <h2>&nbsp;</h2>
       <div id="results">{{status | safe}}</div>
