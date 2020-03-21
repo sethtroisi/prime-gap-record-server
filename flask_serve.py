@@ -2,11 +2,10 @@ import datetime
 import os
 import random
 import re
+import multiprocessing
 import subprocess
 import sqlite3
-import threading
 import time
-from queue import Queue
 
 import gmpy2
 from flask import Flask, Response, g, render_template, request
@@ -35,80 +34,85 @@ SIEVE_PRIMES = 40 * 10 ** 6
 
 
 # Globals for exchanging queue info with background thread
+class WorkCoordinator():
+    def __init__(self):
+        # Status for server
+        self.current = multiprocessing.Manager().list([None])
+
+        # (locked) Worker removes from this, Server pushes to this.
+        self.queue = multiprocessing.Queue()
+        # Used for reporting, should be kept in sync "somehow"
+        self.client_queue = []
+
+        # Worker pushes (without lock to this)
+        self.recent = []
+
+        # Client uses this to avoid double adding to queue (without checking)
+        self.processed = set()
+
+        # Records uploaded via this tool
+        # list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
+        self.new_records = []
+        if os.path.isfile(RECORDS_FN):
+            with open(RECORDS_FN, "r") as f:
+                self.new_records = f.readlines()
+
+    def get_client_queue_lines(self):
+        # Hack because queue doesn't have peek / read
+        assert len(self.client_queue) >= self.queue.qsize()
+        items = self.queue.qsize()
+        if self.current[0] != None:
+            items += 1
+
+        while len(self.client_queue) > items:
+            self.client_queue.pop(0)
+
+        return [k[3] for k in self.client_queue]
+
 
 # Worker thread
 worker = None
+global_coord = WorkCoordinator()
 
-# Used to lock queue for bulk add
-queue_outer_lock = threading.Lock()
-
-# gap_size, start, batch_num, line_fmt, sql_insert
-queue = Queue()
-
-# current status
-current = None
-
-# list of (gapsize, human-readable start, status)
-recent = []
-
-# Records uploaded via this tool
-# list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
-new_records = []
-if os.path.isfile(RECORDS_FN):
-    with open(RECORDS_FN, "r") as f:
-        new_records = f.readlines()
 
 #--------------------
 
 
-def gap_worker():
-    global new_records, recent, queue, current
-
+def gap_worker(coord):
+    time.sleep(4)
     print("Gap Worker running")
 
     batch_messages = []
 
     while True:
-        current = None
-        # Blocks without busy wait
-        queue.not_empty.acquire()
-        if queue._qsize() == 0:
-            print("Worker waiting for not_empty")
-            queue.not_empty.wait()
+        coord.current[0] = None
 
-        # Wait till bulk add is done to start.
-        if queue_outer_lock.locked():
-            queue.not_empty.release()
-            with queue_outer_lock:
-                # Now that bulk add is done, restart
-                continue
-
-        queue_0 = queue.queue[0]
-        queue.not_empty.release()
-
+        queue_0 = coord.queue.get()
         batch_num, gap_size, start, line_fmt, sql_insert = queue_0
         human = sql_insert[-1]
+        print("Worker running: ", line_fmt)
 
         start_t = time.time()
         discoverer = sql_insert[5]
-        success, status = test_one(gap_size, start, discoverer)
+        success, status = test_one(coord, gap_size, start, discoverer)
         end_t = time.time()
 
-        popped = queue.get()
-        assert popped == queue_0
+        # Pop queue now that item is processed.
+        #more_in_batch = (len(coord.queue.queue) > 0 and
+        #                 coord.queue.queue[0][0] == batch_num)
+        # TODO how to handle this?
+        more_in_batch = True
 
-        more_in_batch = len(queue.queue) > 0 and queue.queue[0][0] == batch_num
-
-        current = "Postprocessing{} {}".format(
+        coord.current[0] = "Postprocessing{} {}".format(
             " batch" if more_in_batch else "",
             gap_size)
 
         if not success:
-            recent.append((gap_size, human, status))
+            coord.recent.append((gap_size, human, status))
         else:
             status = "Verified! ({:.1f}s)".format(end_t - start_t)
-            recent.append((gap_size, human, status))
-            new_records.append(line_fmt)
+            coord.recent.append((gap_size, human, status))
+            coord.new_records.append(line_fmt)
 
             print("       line:", line_fmt)
 
@@ -145,11 +149,9 @@ def gap_worker():
                 db.commit()
 
 
-def test_one(gap_size, start, discoverer):
-    global current
-
+def test_one(coord, gap_size, start, discoverer):
     tests = 0
-    current = "Testing {}".format(gap_size)
+    coord.current[0] = "Testing {}".format(gap_size)
 
     if not gmpy2.is_prime(start):
         return False, "start not prime"
@@ -160,7 +162,7 @@ def test_one(gap_size, start, discoverer):
     assert start % 2 == 1
 
     tests += 2
-    current = "Testing {}, {}/{} done, {} PRPs performed".format(
+    coord.current[0] = "Testing {}, {}/{} done, {} PRPs performed".format(
         gap_size, 2, gap_size, tests)
 
     # TODO use gmpy2.next_prime()
@@ -195,7 +197,7 @@ def test_one(gap_size, start, discoverer):
     if log_n > 2000 and merit < 25:
         # More trusted discoverers
         if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
-            skip_fraction = 0.94
+            skip_fraction = 0.995
 
     for k in range(2, gap_size, 2):
         if composite[k]: continue
@@ -206,11 +208,8 @@ def test_one(gap_size, start, discoverer):
         if gmpy2.is_prime(start + k):
             return False, "start + {} is prime".format(k)
 
-        # Make sure other thread gets scheduled
-        time.sleep(0.0001)
-
         tests += 1
-        current = "Testing {}, {}/{} done, {} PRPs performed".format(
+        coord.current[0] = "Testing {}, {}/{} done, {} PRPs performed".format(
             gap_size, k+1, gap_size, tests)
 
     return True, "Verified"
@@ -236,7 +235,7 @@ def update_all_sql(sql_insert):
                 break
 
     # Format is wrong
-    assert (100 < index < 90000), ("WEIRD INDEX", index, new_line)
+    assert (100 < index < 94000), ("WEIRD INDEX", index, new_line)
 
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(sql_insert[0])
     replace = start_insert_line in sql_lines[index]
@@ -331,6 +330,7 @@ def parse_start(num_str):
 
 
 def possible_add_to_queue(
+        coord,
         batch_num,
         gap_size, gap_start,
         ccc_type, discoverer,
@@ -342,14 +342,11 @@ def possible_add_to_queue(
             gap_size)
 
     gap_start = gap_start.replace(" ", "")
-    if any(gap_start in line for line in new_records):
+    if any(gap_start in line for line in coord.new_records):
         return False, "Already added to records"
 
-    queue.mutex.acquire()
-    in_queue = any(k[1] == gap_size for k in queue.queue)
-    queue.mutex.release()
-    if in_queue:
-        return True, "Already in queue"
+    if (gap_size, gap_start) in coord.processed:
+        return True, "Already processed"
 
     rv = list(get_db().execute(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
@@ -387,7 +384,10 @@ def possible_add_to_queue(
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
-    queue.put((batch_num, gap_size, start_n, line_fmt, sql_insert))
+    item = (batch_num, gap_size, start_n, line_fmt, sql_insert)
+    coord.queue.put(item)
+    coord.client_queue.append(item)
+    coord.processed.add((gap_size, gap_start))
 
     return True, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
@@ -395,8 +395,9 @@ def possible_add_to_queue(
         newmerit)
 
 
-def possible_add_to_queue_form(form):
+def possible_add_to_queue_form(coord, form):
     return possible_add_to_queue(
+        coord,
         form.gapstart.data,
         form.gapsize.data,
         form.gapstart.data,
@@ -405,7 +406,7 @@ def possible_add_to_queue_form(form):
         form.date.data)
 
 
-def possible_add_to_queue_log(form):
+def possible_add_to_queue_log(coord, form):
     discoverer = form.discoverer.data
     log_data = form.logdata.data
 
@@ -443,12 +444,11 @@ def possible_add_to_queue_log(form):
             continue
         statuses.append("Didn't find match in: " + line)
 
-    with queue_outer_lock:
-        adds = []
-        for size, start, who, when in line_datas:
-            added, status = possible_add_to_queue(batch_num, size, start, ccc_type, who, when)
-            adds.append(added)
-            statuses.append(status)
+    adds = []
+    for size, start, who, when in line_datas:
+        added, status = possible_add_to_queue(coord, batch_num, size, start, ccc_type, who, when)
+        adds.append(added)
+        statuses.append(status)
 
     return any(adds), "\n<br>\n".join(statuses)
 
@@ -524,7 +524,8 @@ class GapLogForm(FlaskForm):
 
 @app.route("/", methods=("GET", "POST"))
 def controller():
-    global queue
+    global global_coord
+    coord = global_coord
 
     formA = GapForm()
     formB = GapLogForm()
@@ -532,16 +533,16 @@ def controller():
 
     status = ""
     added = False
-    if which_form is not None and queue.qsize() > 1000:
+    if which_form is not None and coord.queue.qsize() > 1000:
         return "Long queue try again later"
 
     if   which_form == "A" and formA.validate_on_submit():
-        added, status = possible_add_to_queue_form(formA)
+        added, status = possible_add_to_queue_form(coord, formA)
     elif which_form == "B" and formB.validate_on_submit():
-        added, status = possible_add_to_queue_log(formB)
+        added, status = possible_add_to_queue_log(coord, formB)
 
-    queued = queue.qsize()
-    queue_data = [k[3] for k in queue.queue]
+    queue_data = coord.get_client_queue_lines()
+    queued = len(queue_data)
 
     if added:
         # Clear both errors
@@ -561,15 +562,16 @@ def controller():
 
 @app.route("/status")
 def status():
-    global new_records, recent, queue, worker
+    global global_coord, worker
+    coord = global_coord
 
-    queue_data = [k[3] for k in queue.queue]
+    queue_data = coord.get_client_queue_lines()
     queued = len(queue_data)
     return render_template(
         "status.html",
         running=worker.is_alive(),
-        new_records=new_records,
-        recent=recent[-50:],
+        new_records=coord.new_records,
+        recent=coord.recent[-50:],
         queue=queue_data,
         queued=queued)
 
@@ -577,17 +579,17 @@ def status():
 @app.route("/validate-gap")
 def stream():
     def gap_status_stream():
-        global queue, current
-        if not queue.qsize():
+        global global_coord
+        coord = global_coord
+        if not coord.queue.qsize():
             # avoid Done print statement
             return
 
         for i in range(3600):
-            queued = queue.qsize()
-            if not queued:
+            queued = coord.queue.qsize()
+            if not queued and not coord.current[0]:
                 break
-            queued = queue.qsize()
-            state = "Queue {}: {}".format(queued, current)
+            state = "Queue {}: {}".format(queued+1, coord.current[0])
             yield "data: " + state + "\n\n"
             time.sleep(5)
 
@@ -598,13 +600,16 @@ def stream():
 
 if __name__ == "__main__":
     # Create background gap_worker
-    worker = threading.Thread(target=gap_worker)
+    worker = multiprocessing.Process(target=gap_worker, args=(global_coord,))
     worker.start()
 
     app.run(
         host="0.0.0.0",
         # host = "::",
         port=5090,
-        # debug=False,
-        debug=True,
+        debug=False,
+        # debug=True,
     )
+
+    worker.terminate()
+

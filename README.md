@@ -17,8 +17,10 @@ git config --global user.email
 
 ### TODO
 
-* [ ] Figure out out how to correctly compute merit for existing records.
-* [x] Check how same item could end up in queue twice
+* [ ] Create PR for new contributor
+* [ ] Push for regular contributor
+* [x] Change to multiprocess
+* [x] Figure out out how to correctly compute merit for existing records.
 * [x] Bundle same discoverer into batches
 * [x] Replace line in allgaps.sql if record already exists
 * [x] Scroll areas in status
