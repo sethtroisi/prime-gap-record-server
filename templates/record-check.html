@@ -8,7 +8,6 @@
         margin: 10px 10px 0px 0px;
       }
 
-
       .field-span:last-child {
         display: block;
       }
@@ -18,15 +17,26 @@
         color: red;
       }
 
-      .field-span ul,
-      .field-span li {
-        display: inline;
-      }
-
       h2 {
-        margin-bottom: 0
+        margin: 0
       }
 
+      #logdata {
+        width: 630px;
+      }
+
+      .scroll-area, #results, #queue {
+        max-height: 330px;
+        width: 630px;
+        overflow-y: auto;
+        overflow-x: auto;
+      }
+
+      .half-col {
+        display: inline-block;
+        vertical-align: top;
+        margin-right: 50px;
+      }
     </style>
 </head>
 
@@ -49,15 +59,7 @@
     <a href={{ url_for('status') }}>status</a>
     <a href="https://github.com/sethtroisi/prime-gap-list/commits/master">(prime-gap-list)</a>
 
-    <form method="POST" action="/?form=A"><br>
-      {% for field in formA %}
-        {{ render_field(field) }}
-      {% endfor %}
-    </form>
-
-    <hr>
-    OR
-    <form method="POST" action="/?form=B"><br>
+    <form method="POST" action="/"><br>
       {{ render_field(formB.discoverer) }}
       {{ render_field(formB.date) }}
       <br><br>
@@ -68,17 +70,25 @@
     </form>
 
     <hr>
-    <div id="results">{{status | safe}}</div>
-  {% if added %}
-    <a href={{ url_for('status') }}>Watch Queue</a>
-  {% endif %}
-    <hr>
+    {% if added %}
+    <span class="half-col">
+      <h2>&nbsp;</h2>
+      <div id="results">{{status | safe}}</div>
+    </span>
+    {% endif %}
 
-    <div id="queue">
-      <h2>{{queued}} Queued</h2>
-    {% for line in queue %}
-      <div>{{ line }}</div>
-    {% endfor %}
-    </div>
+    <span class="half-col">
+      <h2>
+        {{queued}} Queued
+        {% if queued %}
+          <a href={{ url_for('status') }}>Watch Queue</a>
+        {% endif %}
+      </h2>
+      <div id="queue">
+      {% for line in queue %}
+        <div>{{ line }}</div>
+      {% endfor %}
+      </div>
+    </span>
 </body>
 </html>

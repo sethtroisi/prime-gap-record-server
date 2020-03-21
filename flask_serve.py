@@ -428,8 +428,8 @@ def possible_add_to_queue_log(coord, form):
                        r"(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)")
         match = re.search(full_log_re, line)
         if match:
-            if discoverer.lower() != "file":
-                statuses.append("Must set discoverer=file to use full line format")
+            if discoverer.lower() not in ("file", "log"):
+                statuses.append("Must set discoverer=log to use full line format")
                 continue
             else:
                 line_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
@@ -453,53 +453,13 @@ def possible_add_to_queue_log(coord, form):
     return any(adds), "\n<br>\n".join(statuses)
 
 
-class GapForm(FlaskForm):
-    discover_valid_date = DateRange(
-        min=datetime.date(2015, 1, 1),
-        max=datetime.date.today() + datetime.timedelta(hours=48))
-
-    type_choices = (
-        ("C?P", "(C??) PRP on endpoints"),
-        ("C?C", "(C?P) certified endpoints")
-    )
-
-    gapsize = IntegerField(
-        "Gap Size",
-        description="Gap size",
-        render_kw={"style": "width:80px"},
-        validators=[DataRequired()])
-
-    ccc = SelectField(
-        "CCC",
-        choices=type_choices,
-        description="C?? or C?P",
-        validators=[DataRequired()])
-
-    discoverer = StringField(
-        "Discoverer",
-        render_kw={"size": 12},
-        validators=[DataRequired()])
-
-    date = DateField(
-        "Date",
-        validators=[DataRequired(), discover_valid_date])
-
-    gapstart = StringField(
-        "Gapstart",
-        description="Gap start",
-        render_kw={"size": 30},
-        validators=[DataRequired()])
-
-    submit = SubmitField("Add")
-
-
 class GapLogForm(FlaskForm):
     discover_valid_date = DateRange(
         min=datetime.date(2015, 1, 1),
         max=datetime.date.today() + datetime.timedelta(hours=48))
 
     discoverer = StringField(
-        "Discoverer",
+        "Discoverer (or log if present in log)",
         render_kw={"size": 12},
         validators=[DataRequired()])
 
@@ -516,7 +476,7 @@ class GapLogForm(FlaskForm):
             "or\n"
             "2074 2019-09-25 M.Jansen 28.311600 3513398427*71#/30030 - 1532\n"
         ),
-        render_kw={"cols": 70, "rows": 10},
+        render_kw={"rows": 10},
         validators=[DataRequired()])
 
     submit = SubmitField("Add")
@@ -527,7 +487,6 @@ def controller():
     global global_coord
     coord = global_coord
 
-    formA = GapForm()
     formB = GapLogForm()
     which_form = request.args.get("form")
 
@@ -536,22 +495,14 @@ def controller():
     if which_form is not None and coord.queue.qsize() > 1000:
         return "Long queue try again later"
 
-    if   which_form == "A" and formA.validate_on_submit():
-        added, status = possible_add_to_queue_form(coord, formA)
-    elif which_form == "B" and formB.validate_on_submit():
+    if formB.validate_on_submit():
         added, status = possible_add_to_queue_log(coord, formB)
 
     queue_data = coord.get_client_queue_lines()
     queued = len(queue_data)
 
-    if added:
-        # Clear both errors
-        formA.errors.clear()
-        formB.errors.clear()
-
     return render_template(
         "record-check.html",
-        formA=formA,
         formB=formB,
         added=added,
         status=status,
