@@ -39,10 +39,14 @@ class WorkCoordinator():
         # Status for server
         self.current = multiprocessing.Manager().list([None])
 
-        # (locked) Worker removes from this, Server pushes to this.
+        # (threadsafe) Worker removes from this, Server pushes to this.
         self.queue = multiprocessing.Queue()
-        # Used for reporting, should be kept in sync "somehow"
+
+        # Used for client status
         self.client_queue = []
+
+        # Used by server to tell client when items are done
+        self.client_size = multiprocessing.Value('i', 0)
 
         # Worker pushes (without lock to this)
         self.recent = []
@@ -58,16 +62,10 @@ class WorkCoordinator():
                 self.new_records = f.readlines()
 
     def get_client_queue_lines(self):
-        # Hack because queue doesn't have peek / read
-        assert len(self.client_queue) >= self.queue.qsize()
-        items = self.queue.qsize()
-        if self.current[0] != None:
-            items += 1
-
-        while len(self.client_queue) > items:
+        while len(self.client_queue) > self.client_size.value:
             self.client_queue.pop(0)
 
-        return [k[3] for k in self.client_queue]
+        return self.client_queue
 
 
 # Worker thread
@@ -82,39 +80,46 @@ def gap_worker(coord):
     time.sleep(4)
     print("Gap Worker running")
 
-    batch_messages = []
-
     while True:
         coord.current[0] = None
 
-        queue_0 = coord.queue.get()
-        batch_num, gap_size, start, line_fmt, sql_insert = queue_0
-        human = sql_insert[-1]
-        print("Worker running: ", line_fmt)
+        batch = coord.queue.get()
+        verified = []
+        for index, item in enumerate(batch, 1):
+            gap_size, start, line_fmt, sql_insert = item
+            human = sql_insert[-1]
 
-        start_t = time.time()
-        discoverer = sql_insert[5]
-        success, status = test_one(coord, gap_size, start, discoverer)
-        end_t = time.time()
+            batch_message = "{} of {} ".format(index, len(batch))
+            print("Worker running", batch_message, line_fmt)
 
-        # Pop queue now that item is processed.
-        #more_in_batch = (len(coord.queue.queue) > 0 and
-        #                 coord.queue.queue[0][0] == batch_num)
-        # TODO how to handle this?
-        more_in_batch = True
+            start_t = time.time()
+            discoverer = sql_insert[5]
+            success, status = test_one(coord, gap_size, start, discoverer)
+            end_t = time.time()
 
-        coord.current[0] = "Postprocessing{} {}".format(
-            " batch" if more_in_batch else "",
-            gap_size)
+            coord.current[0] = "Postprocessing {}{}".format(
+                batch_message if len(batch) > 1 else "", gap_size)
 
-        if not success:
-            coord.recent.append((gap_size, human, status))
-        else:
-            status = "Verified! ({:.1f}s)".format(end_t - start_t)
-            coord.recent.append((gap_size, human, status))
-            coord.new_records.append(line_fmt)
+            if success:
+                status = "Verified! ({:.1f}s)".format(end_t - start_t)
+                verified.append(item)
+                coord.recent.append((gap_size, human, status))
+                coord.new_records.append(line_fmt)
+            else:
+                coord.recent.append((gap_size, human, status))
+
+            with coord.client_size.get_lock():
+                coord.client_size.value -= 1
 
             print("       line:", line_fmt)
+
+        if not verified:
+            continue
+
+        # process the batch into commit, records.
+        commit_msgs = []
+        for item in verified:
+            _, _, _, sql_insert = item
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -126,27 +131,27 @@ def gap_worker(coord):
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
                 sql_insert[0], sql_insert[7], discoverer)
-            batch_messages.append(commit_msg)
+            commit_msgs.append(commit_msg)
 
-            if not more_in_batch:
-                if len(batch_messages) == 1:
-                    commit_msg = batch_messages[0]
-                else:
-                    # TODO What to do if author not the same
-                    header = "{} Records | First {}\n".format(
-                        len(batch_messages), batch_messages[0])
-                    commit_msg = "\n".join([header] + batch_messages)
-                git_commit_and_push(commit_msg)
-                batch_messages = []
-                print("\n")
+        if len(commit_msgs) > 1:
+            # TODO What to do if author not the same
+            header = "{} Records | First {}\n".format(
+                len(commit_msgs), commit_msgs[0])
+            commit_msgs.insert(0, header)
 
-            # Write to gaps.db
-            with open_db() as db:
+        commit_msg = "\n".join(commit_msgs)
+        git_commit_and_push(commit_msg)
+
+        # Write to gaps.db
+        with open_db() as db:
+            for gap_size, _, _, _ in verified:
                 # Delete any existing gap
                 db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
                 # Insert new gap into db
                 db.execute(SQL_INSERT_PREFIX + str(sql_insert))
-                db.commit()
+            db.commit()
+
+        print ("Batch Done!")
 
 
 def test_one(coord, gap_size, start, discoverer):
@@ -197,7 +202,7 @@ def test_one(coord, gap_size, start, discoverer):
     if log_n > 2000 and merit < 25:
         # More trusted discoverers
         if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
-            skip_fraction = 0.995
+            skip_fraction = 0.7
 
     for k in range(2, gap_size, 2):
         if composite[k]: continue
@@ -331,7 +336,6 @@ def parse_start(num_str):
 
 def possible_add_to_queue(
         coord,
-        batch_num,
         gap_size, gap_start,
         ccc_type, discoverer,
         discover_date):
@@ -346,7 +350,8 @@ def possible_add_to_queue(
         return False, "Already added to records"
 
     if (gap_size, gap_start) in coord.processed:
-        return True, "Already processed"
+        return False, "Already processed"
+    coord.processed.add((gap_size, gap_start))
 
     rv = list(get_db().execute(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
@@ -368,8 +373,8 @@ def possible_add_to_queue(
 
     newmerit = gap_size / gmpy2.log(start_n)
     if newmerit <= e_merit + 0.005:
-        return False, "Existing {} with better merit {:.3f} vs {:.4f}".format(
-            e_startprime, e_merit, newmerit)
+        return False, "Existing gap {} with better merit {:.3f} vs {:.4f}".format(
+            gap_size, e_merit, newmerit)
 
     # Pull data from form for old style line & github entry
     newmerit_fmt = "{:.3f}".format(newmerit)
@@ -384,26 +389,12 @@ def possible_add_to_queue(
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
-    item = (batch_num, gap_size, start_n, line_fmt, sql_insert)
-    coord.queue.put(item)
-    coord.client_queue.append(item)
-    coord.processed.add((gap_size, gap_start))
+    item = (gap_size, start_n, line_fmt, sql_insert)
 
-    return True, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
+    return item, "Adding {} gapsize={} to queue, would improve merit {} to {:.3f}".format(
         short_start(start_n), gap_size,
         "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
         newmerit)
-
-
-def possible_add_to_queue_form(coord, form):
-    return possible_add_to_queue(
-        coord,
-        form.gapstart.data,
-        form.gapsize.data,
-        form.gapstart.data,
-        form.ccc.data,
-        form.discoverer.data,
-        form.date.data)
 
 
 def possible_add_to_queue_log(coord, form):
@@ -411,7 +402,6 @@ def possible_add_to_queue_log(coord, form):
     log_data = form.logdata.data
 
     # How to choice this better?
-    batch_num = abs(hash(discoverer) + hash(log_data))
     ccc_type = "C?P" # TODO describe this somewhere
 
     # Not yet checked for > previous records
@@ -444,13 +434,24 @@ def possible_add_to_queue_log(coord, form):
             continue
         statuses.append("Didn't find match in: " + line)
 
-    adds = []
+    batch = []
     for size, start, who, when in line_datas:
-        added, status = possible_add_to_queue(coord, batch_num, size, start, ccc_type, who, when)
-        adds.append(added)
+        item, status = possible_add_to_queue(coord, size, start, ccc_type, who, when)
+        if item:
+            batch.append(item)
         statuses.append(status)
 
-    return any(adds), "\n<br>\n".join(statuses)
+    if batch:
+        with coord.client_size.get_lock():
+            coord.client_size.value += len(batch)
+            coord.queue.put(batch)
+            for item in batch:
+                coord.client_queue.append(item[2])
+
+    print("Processed {} lines to {} batch".format(
+        len(line_datas), len(batch)))
+
+    return len(batch) > 0, "\n<br>\n".join(statuses)
 
 
 class GapLogForm(FlaskForm):
@@ -532,15 +533,15 @@ def stream():
     def gap_status_stream():
         global global_coord
         coord = global_coord
-        if not coord.queue.qsize():
-            # avoid Done print statement
+        if coord.client_size.value == 0:
             return
 
         for i in range(3600):
-            queued = coord.queue.qsize()
-            if not queued and not coord.current[0]:
+            queued = coord.client_size.value
+            if not queued:
                 break
-            state = "Queue {}: {}".format(queued+1, coord.current[0])
+
+            state = "Queue {}: {}".format(queued, coord.current[0])
             yield "data: " + state + "\n\n"
             time.sleep(5)
 
