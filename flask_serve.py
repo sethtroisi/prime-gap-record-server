@@ -49,7 +49,7 @@ class WorkCoordinator():
         self.client_size = multiprocessing.Value('i', 0)
 
         # Worker pushes (without lock to this)
-        self.recent = []
+        self.recent = multiprocessing.Manager().list()
 
         # Client uses this to avoid double adding to queue (without checking)
         self.processed = set()
@@ -120,14 +120,14 @@ def gap_worker(coord):
         commit_msgs = []
         new_records = 0
         improved_merit = 0
-        for _, _, improved, _, sql_insert in verified:
+        for gap_size, _, improved, _, sql_insert in verified:
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
                 f.write(line_fmt + "\n")
 
             # Write to allgaps.sql (sorted), kinda slow
-            replace = update_all_sql(sql_insert)
+            replace = update_all_sql(gap_size, sql_insert)
             new_records += not replace
             improved_merit += improved
 
@@ -138,8 +138,8 @@ def gap_worker(coord):
 
         if len(commit_msgs) > 1:
             # TODO What to do if multiple authors?
-            header = "{} Records {}by {} (merit +{:.2f}) gaps {} to {}\n".format(
-                len(commit_msgs),
+            header = "{} updates {}by {} (merit +{:.2f}) gaps {} to {}\n".format(
+                len(commit_msgs) - new_records,
                 "{} new gaps ".format(new_records) if new_records else "",
                 discoverer,
                 improved_merit,
@@ -182,7 +182,6 @@ def test_one(coord, gap_size, start, discoverer):
     #   pros: faster (~2x)
     #   cons: no status (maybe create timestamp somewhere)
 
-    # Do something smart here like gmp-devel list
     log_n = gmpy2.log(start)
     sieve_primes = min(1000, min(SIEVE_PRIMES, log_n ** 2))
 
@@ -228,14 +227,18 @@ def test_one(coord, gap_size, start, discoverer):
     return True, "Verified"
 
 
-def update_all_sql(sql_insert):
+def update_all_sql(gap_size, sql_insert):
     sql_lines = []
     with open(ALL_SQL_FN, "r") as f:
         sql_lines = f.readlines()
 
     assert 110 < len(sql_lines) < 100000, len(sql_lines)
 
-    new_line = SQL_INSERT_PREFIX + str(sql_insert).replace(" ", "") + ";\n"
+    # HACK: want merit to be like 15.230 not 15.23 so used {:.3f} not round
+    # Downside is str(sql_insert) changes that to '15.230' so convert back here.
+    str_sql_insert = str(sql_insert).replace(" ", "")
+    str_sql_insert = re.sub(r",'([0-9.]+)',", r",\1,", str_sql_insert)
+    new_line = SQL_INSERT_PREFIX + str_sql_insert + ";\n"
 
     # Find the right place in the insert section
     for index, line in enumerate(sql_lines):
@@ -244,13 +247,13 @@ def update_all_sql(sql_insert):
             match = re.search(r"\(([0-9]+),", line)
             assert match
             gap = int(match.group(1))
-            if gap >= sql_insert[0]:
+            if gap >= gap_size:
                 break
 
     # Format is wrong
     assert (100 < index < 94000), ("WEIRD INDEX", index, new_line)
 
-    start_insert_line = SQL_INSERT_PREFIX + "(" + str(sql_insert[0])
+    start_insert_line = SQL_INSERT_PREFIX + "(" + str(gap_size)
     replace = start_insert_line in sql_lines[index]
     if replace:
         print ("  Replacing ", sql_lines[index].strip())
