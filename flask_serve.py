@@ -471,7 +471,9 @@ def possible_add_to_queue_log(coord, form):
 
 
 class GapLogForm(FlaskForm):
-    discover_valid_date = DateRange(
+    @staticmethod
+    def valid_date_range():
+        return DateRange(
         min=datetime.date(2015, 1, 1),
         max=datetime.date.today() + datetime.timedelta(hours=48))
 
@@ -482,7 +484,7 @@ class GapLogForm(FlaskForm):
 
     date = DateField(
         "Date",
-        validators=[DataRequired(), discover_valid_date])
+        validators=[DataRequired(), DataRequired()])
 
     logdata = TextAreaField(
         "LogData",
@@ -498,13 +500,20 @@ class GapLogForm(FlaskForm):
 
     submit = SubmitField("Add")
 
+    @classmethod
+    def new(csl):
+        form = csl()
+        form.date.validators[0] = GapLogForm.valid_date_range()
+        return form
+
+
 
 @app.route("/", methods=("GET", "POST"))
 def controller():
     global global_coord
     coord = global_coord
 
-    formB = GapLogForm()
+    formB = GapLogForm.new()
     which_form = request.args.get("form")
 
     status = ""
