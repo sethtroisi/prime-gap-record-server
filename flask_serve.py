@@ -278,8 +278,10 @@ def git_commit_and_push(commit_msg):
     try:
         os.chdir("prime-gap-list")
 
+        # TODO verify we're on branch "server"
+
         subprocess.check_output(["git", "commit", "-am", commit_msg])
-        subprocess.check_output(["git", "push", "safe"])
+        subprocess.check_output(["git", "push", "upstream", "server:server"])
         print()
     except Exception as e:
         print("Error!", e)
