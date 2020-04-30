@@ -159,7 +159,7 @@ def gap_worker(coord):
                 db.execute(SQL_INSERT_PREFIX + str(sql_insert))
             db.commit()
 
-        print ("Batch Done!")
+        print ("Batch Done!", datetime.datetime.now().isoformat(sep=' '))
 
 
 def test_one(coord, gap_size, start, discoverer):
