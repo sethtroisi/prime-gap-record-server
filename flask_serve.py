@@ -120,7 +120,7 @@ def gap_worker(coord):
         commit_msgs = []
         new_records = 0
         improved_merit = 0
-        for gap_size, _, improved, _, sql_insert in verified:
+        for gap_size, _, improved, line_fmt, sql_insert in verified:
 
             # Write to record file
             with open(RECORDS_FN, "a") as f:
@@ -152,14 +152,21 @@ def gap_worker(coord):
 
         # Write to gaps.db
         with open_db() as db:
-            for gap_size, _, _, _, _ in verified:
+            start_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
+            for gap_size, _, _, _, sql_insert in verified:
                 # Delete any existing gap
-                db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
+                a = db.execute("DELETE FROM gaps WHERE gapsize = ?", (gap_size,))
                 # Insert new gap into db
-                db.execute(SQL_INSERT_PREFIX + str(sql_insert))
+                b = db.execute(SQL_INSERT_PREFIX + str(sql_insert))
+                if a.rowcount != 1 or b.rowcount != 1:
+                    print ("UPDATE {} FAILED: {} & {}".format(
+                        sql_insert, a.rowcount, b.rowcount))
             db.commit()
+            end_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
 
-        print ("Batch Done!", datetime.datetime.now().isoformat(sep=' '))
+        print ("Batch Done! @{} (count {} => {})".format(
+            datetime.datetime.now().isoformat(sep=' '),
+            start_count[0], end_count[0]))
 
 
 def test_one(coord, gap_size, start, discoverer):
