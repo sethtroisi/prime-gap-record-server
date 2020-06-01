@@ -322,7 +322,55 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-def parse_start(num_str):
+NUMBER_RE_1 = re.compile(r"^(\d+)\*\(?(\d+)#\)?/(\d+)-(\d+)$")
+NUMBER_RE_2 = re.compile(r"^\(?(\d+)#\)?/(\d+)-(\d+)$")
+NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)-(\d+)$")
+NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)-(\d+)$")
+
+
+def parse_num_fast(start):
+    start = start.replace(" ", "")
+    num = None
+    if start.isdigit():
+        return int(start)
+
+    num_match = NUMBER_RE_1.match(start)
+    if num_match:
+        m, p, d, a = map(int, num_match.groups())
+        K = m * gmpy2.primorial(p)
+        assert K % d == 0
+        return K // d - a
+
+    num_match = NUMBER_RE_2.match(start)
+    if num_match:
+        p, d, a = map(int, num_match.groups())
+        K = gmpy2.primorial(p)
+        assert K % d == 0
+        return K // d - a
+
+    num_match = NUMBER_RE_3.match(start)
+    if num_match:
+        m, p, d1, d2, a = map(int, num_match.groups())
+        K = m * gmpy2.primorial(p)
+        D = gmpy2.primorial(d1) * d2
+        assert K % D == 0
+        return K // D - a
+
+    num_match = NUMBER_RE_4.match(start)
+    if num_match:
+        m, p, d1, d2, a = map(int, num_match.groups())
+        K = m * gmpy2.primorial(p)
+        D = d1 * d2
+        assert K % D == 0
+        return K // D - a
+
+    return None
+
+def parse_num(num_str):
+    fast = parse_num_fast(num_str)
+    if fast:
+        return fast
+
     if "(" in num_str or ")" in num_str:
         return None
     if len(num_str) > 10000:
@@ -382,9 +430,13 @@ def possible_add_to_queue(
     assert len(rv) in (0, 1), [tuple(r) for r in rv]
     if len(rv) == 0:
         rv.append([0, 0])
-    e_merit, e_startprime = rv[0]
+    e_merit_db, e_startprime = rv[0]
+    e_start = parse_num(e_startprime)
+    e_merit = gap_size / gmpy2.log(e_start)
+    if abs(e_merit_db - e_merit) > 0.01:
+        assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
 
-    start_n = parse_start(gap_start)
+    start_n = parse_num(gap_start)
     if start_n is None:
         err_msg = ("Can't parse gapstart={} (post on "
                    "MersenneForum if this is an error)").format(gap_start)
@@ -395,10 +447,15 @@ def possible_add_to_queue(
         return False, "gapstart={} is even".format(gap_start)
 
     new_merit = gap_size / gmpy2.log(start_n)
+    if start_n >= e_start:
+        return False, "Existing gap {} with better {} {:.3f} vs {} {:.4f}".format(
+            gap_size,
+            short_start(e_start),
+            e_merit,
+            short_start(start_n),
+            new_merit)
+
     improved_merit = new_merit - e_merit
-    if improved_merit < 0.006:  # deal with dodgy rounding.
-        return False, "Existing gap {} with better merit {:.3f} vs {:.4f}".format(
-            gap_size, e_merit, new_merit)
 
     # Pull data from form for old style line & github entry
     newmerit_fmt = "{:.3f}".format(new_merit)
