@@ -428,10 +428,13 @@ def possible_add_to_queue(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
         (gap_size,)))
     assert len(rv) in (0, 1), [tuple(r) for r in rv]
-    if len(rv) == 0:
-        rv.append([0, 0])
-    e_merit_db, e_startprime = rv[0]
-    e_start = parse_num(e_startprime)
+    if len(rv) == 1:
+        e_merit_db, e_startprime = rv[0]
+        e_start = parse_num(e_startprime)
+    else:
+        e_start = REALLY_LARGE
+        e_merit_db = gap_size / gmpy2.log(e_start)
+
     e_merit = gap_size / gmpy2.log(e_start)
     if abs(e_merit_db - e_merit) > 0.01:
         assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
