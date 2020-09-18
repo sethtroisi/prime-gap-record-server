@@ -446,13 +446,12 @@ def possible_add_to_queue(
     if len(rv) == 1:
         e_merit_db, e_startprime = rv[0]
         e_start = parse_num(e_startprime)
+        e_merit = gap_size / gmpy2.log(e_start)
+        if abs(e_merit_db - e_merit) > 0.01:
+            assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
     else:
-        e_start = REALLY_LARGE
-        e_merit_db = gap_size / gmpy2.log(e_start)
-
-    e_merit = gap_size / gmpy2.log(e_start)
-    if abs(e_merit_db - e_merit) > 0.01:
-        assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
+        e_start = None
+        e_merit = 0
 
     start_n = parse_num(gap_start)
     if start_n is None:
@@ -465,7 +464,7 @@ def possible_add_to_queue(
         return False, "gapstart={} is even".format(gap_start)
 
     new_merit = gap_size / gmpy2.log(start_n)
-    if start_n >= e_start:
+    if e_start is not None and start_n >= e_start:
         return False, "Existing gap {} with better {} {:.3f} vs {} {:.4f}".format(
             gap_size,
             short_start(e_start),
