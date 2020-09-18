@@ -213,9 +213,23 @@ def test_one(coord, gap_size, start, discoverer):
     # TODO: Do something better here based on name, size...
     merit = gap_size / log_n
     skip_fraction = 0
-    if log_n > 2000 and merit < 25:
+
+    if log_n > 20000 and merit < 20:
+        # Megagap verification
+        if discoverer in ("MrtnRaab",):
+            # Tries to keep total verification time under a couple of hours
+            prp_time = log_n ** 2.5 / 2e10
+            prp_count = gap_size / (log(sieve_primes) * exp(0.57721))
+
+            skip_fraction = (3600 / prp_time) / prp_count
+            print ("MEGAGAP: log_n: {} (estimated prp_time: {:.0f}s x {:.0f}) "
+                   "merit: {:.1f} skip_fraction: {:.4f} (1 in {:.1f})".format(
+                log_n, prp_time, prp_count, prp_count,
+                merit, skip_fraction, 1 / skip_fraction))
+
+    elif log_n > 5000 and merit < 20:
         # More trusted discoverers
-        if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal"):
+        if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal", "MrtnRaab"):
             skip_fraction = 0.7
 
     for k in range(2, gap_size, 2):
@@ -388,7 +402,7 @@ def parse_num(num_str):
         m, p, d, a = map(int, (m, p, d, a))
 
         # Check if p will be > REALLY_LARGE
-        if p > 25000:
+        if p > 100000:
             return REALLY_LARGE
         if p < 50:
             return None
@@ -428,6 +442,7 @@ def possible_add_to_queue(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
         (gap_size,)))
     assert len(rv) in (0, 1), [tuple(r) for r in rv]
+    # existing_merit_in_db, existing_start_prime
     if len(rv) == 1:
         e_merit_db, e_startprime = rv[0]
         e_start = parse_num(e_startprime)
@@ -492,14 +507,17 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
+    #Primorial in the form {m*P#/d-s, m*P#/d#-s, P#/d-s}
+    primorial_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
+
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
             continue
 
+        # TODO example
         full_log_re = (r"(\d+)\s+"
                        r"(20[12]\d-\d\d?-\d\d?)\s+([\w.]+\.?[\w.]*)\s+"
-                       r"([\d.]+)\s+"
-                       r"(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)")
+                       r"([\d.]+)\s+") + primorial_re
         match = re.search(full_log_re, line)
         if match:
             if discoverer.lower() not in ("file", "log"):
@@ -510,11 +528,19 @@ def possible_add_to_queue_log(coord, form):
                 line_datas.append((int(match.group(1)), match.group(5), match.group(3), line_date))
                 continue
 
-        log_re = r"(\d+)\s+([\d.]+)\s+(\d+\s*\*\s*\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
+        # <gap> <experected_merit> <START>
+        log_re = r"(\d+)\s+([\d.]+)\s+" + primorial_re
         match = re.search(log_re, line)
         if match:
             discover_date = form.date.data
             line_datas.append((int(match.group(1)), match.group(3), discoverer, discover_date))
+            continue
+
+        gap_start_re = r"(\d+)\s+" + primorial_re
+        match = re.search(gap_start_re, line)
+        if match:
+            discover_date = form.date.data
+            line_datas.append((int(match.group(1)), match.group(2), discoverer, discover_date))
             continue
 
         statuses.append("Didn't find match in: " + line)
