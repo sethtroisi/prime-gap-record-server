@@ -212,30 +212,31 @@ def test_one(coord, gap_size, start, discoverer):
 
     # TODO: Do something better here based on name, size...
     merit = gap_size / log_n
-    skip_fraction = 0
+    test_fraction = 1
 
     if log_n > 20000 and merit < 20:
         # Megagap verification
         if discoverer in ("MrtnRaab",):
             # Tries to keep total verification time under a couple of hours
             prp_time = log_n ** 2.5 / 2e10
-            prp_count = gap_size / (log(sieve_primes) * exp(0.57721))
+            # exp(gamma=0.57721) = 1.78197
+            prp_count = gap_size / (gmpy2.log(sieve_primes) * 1.78197)
 
-            skip_fraction = (3600 / prp_time) / prp_count
-            print ("MEGAGAP: log_n: {} (estimated prp_time: {:.0f}s x {:.0f}) "
-                   "merit: {:.1f} skip_fraction: {:.4f} (1 in {:.1f})".format(
-                log_n, prp_time, prp_count, prp_count,
-                merit, skip_fraction, 1 / skip_fraction))
+            test_fraction = (3600 / prp_time) / prp_count
+            print ("MEGAGAP: log_n: {} (estimated prp_time: {:.1f}s x ~{}) "
+                   "merit: {:.1f} test_fraction: {:.4f} (1 in {:.1f})".format(
+                round(log_n), prp_time, round(prp_count),
+                merit, test_fraction, 1 / test_fraction))
 
     elif log_n > 5000 and merit < 20:
         # More trusted discoverers
         if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal", "MrtnRaab"):
-            skip_fraction = 0.7
+            test_fraction = 0.7
 
     for k in range(2, gap_size, 2):
         if composite[k]: continue
 
-        if skip_fraction > 0 and random.random() < skip_fraction:
+        if test_fraction > 0 and random.random() > test_fraction:
             continue
 
         if gmpy2.is_prime(start + k):
