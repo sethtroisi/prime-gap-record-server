@@ -671,6 +671,20 @@ def stream():
     return Response(gap_status_stream(), mimetype="text/event-stream")
 
 
+@app.route("/merits.txt")
+def merits():
+    # Write merits.txt
+    merits = list(get_db().execute(
+        "SELECT gapsize, merit, discoverer FROM gaps ORDER BY gapsize ASC"))
+
+    rows = []
+    for m in merits:
+        rows.append(" ".join(map(str, m)))
+
+    return Response("\n".join(rows), mimetype="text/plain")
+
+
+
 if __name__ == "__main__":
     # Create background gap_worker
     worker = multiprocessing.Process(target=gap_worker, args=(global_coord,))
