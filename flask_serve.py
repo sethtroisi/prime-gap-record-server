@@ -60,6 +60,8 @@ class WorkCoordinator():
         if os.path.isfile(RECORDS_FN):
             with open(RECORDS_FN, "r") as f:
                 self.new_records = f.readlines()
+        # Reverse list so new records are at the front.
+        self.new_records = self.new_records[::-1]
 
     def get_client_queue_lines(self):
         while len(self.client_queue) > self.client_size.value:
@@ -104,7 +106,7 @@ def gap_worker(coord):
                 status = "Verified! ({:.1f}s)".format(end_t - start_t)
                 verified.append(item)
                 coord.recent.append((gap_size, human, status))
-                coord.new_records.append(line_fmt)
+                coord.new_records.insert(0, line_fmt)
             else:
                 coord.recent.append((gap_size, human, status))
 
