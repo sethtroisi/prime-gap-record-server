@@ -192,7 +192,7 @@ def test_one(coord, gap_size, start, discoverer):
     #   cons: no status (maybe create timestamp somewhere)
 
     log_n = gmpy2.log(start)
-    sieve_primes = min(1000, min(SIEVE_PRIMES, log_n ** 2))
+    sieve_primes = max(1000, min(SIEVE_PRIMES, log_n ** 2))
 
     composite = [False for i in range(gap_size+1)]
     primes = [True for i in range(sieve_primes//2+1)]
