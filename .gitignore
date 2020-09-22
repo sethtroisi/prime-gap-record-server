@@ -3,3 +3,5 @@ gaps.db
 records.txt
 
 prime-gap-list
+
+__pycache__

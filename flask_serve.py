@@ -32,7 +32,6 @@ assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 40 * 10 ** 6
 
-
 # Globals for exchanging queue info with background thread
 class WorkCoordinator():
     def __init__(self):
@@ -192,7 +191,7 @@ def test_one(coord, gap_size, start, discoverer):
     #   cons: no status (maybe create timestamp somewhere)
 
     log_n = gmpy2.log(start)
-    sieve_primes = max(1000, min(SIEVE_PRIMES, log_n ** 2))
+    sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
 
     composite = [False for i in range(gap_size+1)]
     primes = [True for i in range(sieve_primes//2+1)]
@@ -685,12 +684,12 @@ def merits():
     return Response("\n".join(rows), mimetype="text/plain")
 
 
+# Create background gap_worker
+worker = multiprocessing.Process(target=gap_worker, args=(global_coord,))
+worker.start()
+
 
 if __name__ == "__main__":
-    # Create background gap_worker
-    worker = multiprocessing.Process(target=gap_worker, args=(global_coord,))
-    worker.start()
-
     app.run(
         host="0.0.0.0",
         # host = "::",
@@ -700,4 +699,3 @@ if __name__ == "__main__":
     )
 
     worker.terminate()
-
