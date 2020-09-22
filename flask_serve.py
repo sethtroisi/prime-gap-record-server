@@ -161,7 +161,7 @@ def gap_worker(coord):
                 # Insert new gap into db
                 b = db.execute(SQL_INSERT_PREFIX + str(sql_insert))
                 if a.rowcount != 1 or b.rowcount != 1:
-                    print ("UPDATE {} FAILED: {} & {}".format(
+                    print ("UPDATE {} UNEQUAL: {} & {}".format(
                         sql_insert, a.rowcount, b.rowcount))
             db.commit()
             end_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
@@ -284,6 +284,7 @@ def update_all_sql(gap_size, sql_insert):
         print ("  With      ", new_line.strip())
         sql_lines[index] = new_line
     else:
+        print (" !INSERTING! ", new_line.strip())
         sql_lines.insert(index, new_line)
 
     # Write file back out (slow to do each time, but unavoidable?)
