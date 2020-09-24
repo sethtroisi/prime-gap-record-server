@@ -6,7 +6,7 @@ Performs validation then submits record.
 
 ```shell
 # Setup
-git submodule init
+git clone https://github.com/primegap-list-project/prime-gap-list.git
 sqlite3 gaps.db < prime-gap-list/allgaps.sql
 cd prime-gap-list
 git remote add upstream git@github.com:primegap-list-project/prime-gap-list.git
