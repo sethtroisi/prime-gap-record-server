@@ -478,7 +478,7 @@ def possible_add_to_queue(
     improved_merit = new_merit - e_merit
 
     # Pull data from form for old style line & github entry
-    newmerit_fmt = "{:.3f}".format(new_merit)
+    newmerit_fmt = "{:.4f}".format(new_merit)
     primedigits = len(str(start_n))
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
@@ -679,7 +679,7 @@ def merits():
 
     rows = []
     for m in merits:
-        rows.append(" ".join(map(str, m)))
+        rows.append("{} {:.4f} {}".format(*m))
 
     return Response("\n".join(rows), mimetype="text/plain")
 
