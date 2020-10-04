@@ -23,6 +23,7 @@ SECRET_KEY = hex(random.randint(0, 2**32))
 app.config["SECRET_KEY"] = SECRET_KEY
 
 RECORDS_FN = "records.txt"
+SUBMISSIONS_FN = "submissions.txt"
 ALL_SQL_FN = "prime-gap-list/allgaps.sql"
 GAPS_DB_FN = "gaps.db"
 
@@ -439,7 +440,7 @@ def parse_num(num_str):
 def possible_add_to_queue(
         coord,
         gap_size, gap_start,
-        ccc_type, discoverer,
+        discoverer,
         discover_date):
     if gap_size % 2 == 1:
         return False, "Odd gapsize is unlikely"
@@ -499,6 +500,9 @@ def possible_add_to_queue(
     newmerit_fmt = "{:.4f}".format(new_merit)
     primedigits = len(str(start_n))
 
+    # How to choice this better?
+    ccc_type = "C?P" # TODO describe this somewhere
+
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
         gap_size, ccc_type, newmerit_fmt, discoverer,
         discover_date.isoformat(), primedigits, gap_start)
@@ -519,9 +523,6 @@ def possible_add_to_queue(
 def possible_add_to_queue_log(coord, form):
     discoverer = form.discoverer.data
     log_data = form.logdata.data
-
-    # How to choice this better?
-    ccc_type = "C?P" # TODO describe this somewhere
 
     # Not yet checked for > previous records
     line_datas = []
@@ -565,9 +566,15 @@ def possible_add_to_queue_log(coord, form):
 
         statuses.append("Didn't find match in: " + line)
 
+    with open(SUBMISSIONS_FN, "a") as f:
+        f.write("BATCH\n")
+        for size, start, who, when in line_datas:
+            f.write(f"{size} {when} {who} 1.234 {start}\n")
+        f.write("\n\n")
+
     batch = []
     for size, start, who, when in line_datas:
-        item, status = possible_add_to_queue(coord, size, start, ccc_type, who, when)
+        item, status = possible_add_to_queue(coord, size, start, who, when)
         if item:
             batch.append(item)
         statuses.append(status)
