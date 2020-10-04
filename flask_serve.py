@@ -339,12 +339,12 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-NUMBER_RE_1 = re.compile(r"^(\d+)\*\(?(\d+)#\)?/(\d+)-(\d+)$")
-NUMBER_RE_2 = re.compile(r"^\(?(\d+)#\)?/(\d+)-(\d+)$")
-NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)-(\d+)$")
-NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)-(\d+)$")
-
-
+NUMBER_RE_1 = re.compile(r"^(\d+)\*\(?(\d+)#\)?/(\d+)([+-]\d+)$")
+NUMBER_RE_2 = re.compile(r"^\(?(\d+)#\)?/(\d+)([+-]\d+)$")
+NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)([+-]\d+)$")
+NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)([+-]\d+)$")
+NUMBER_RE_5 = re.compile(r"^(\d+)\*(\d+)#/(\d+)#([+-]\d+)$")
+NUMBER_RE_6 = re.compile(r"^(\d+)\^(\d+)([+-]\d+)$")
 def parse_num_fast(start):
     start = start.replace(" ", "")
     num = None
@@ -356,14 +356,14 @@ def parse_num_fast(start):
         m, p, d, a = map(int, num_match.groups())
         K = m * gmpy2.primorial(p)
         assert K % d == 0
-        return K // d - a
+        return K // d + a
 
     num_match = NUMBER_RE_2.match(start)
     if num_match:
         p, d, a = map(int, num_match.groups())
         K = gmpy2.primorial(p)
         assert K % d == 0
-        return K // d - a
+        return K // d + a
 
     num_match = NUMBER_RE_3.match(start)
     if num_match:
@@ -371,7 +371,7 @@ def parse_num_fast(start):
         K = m * gmpy2.primorial(p)
         D = gmpy2.primorial(d1) * d2
         assert K % D == 0
-        return K // D - a
+        return K // D + a
 
     num_match = NUMBER_RE_4.match(start)
     if num_match:
@@ -379,9 +379,23 @@ def parse_num_fast(start):
         K = m * gmpy2.primorial(p)
         D = d1 * d2
         assert K % D == 0
-        return K // D - a
+        return K // D + a
+
+    num_match = NUMBER_RE_5.match(start)
+    if num_match:
+        m, p, d, a = map(int, num_match.groups())
+        K = m * gmpy2.primorial(p)
+        D = gmpy2.primorial(d)
+        assert K % D == 0
+        return K // D + a
+
+    num_match = NUMBER_RE_6.match(start)
+    if num_match:
+        b, p, a = map(int, num_match.groups())
+        return b ** p + a
 
     return None
+
 
 def parse_num(num_str):
     fast = parse_num_fast(num_str)
@@ -449,9 +463,13 @@ def possible_add_to_queue(
     if len(rv) == 1:
         e_merit_db, e_startprime = rv[0]
         e_start = parse_num(e_startprime)
-        e_merit = gap_size / gmpy2.log(e_start)
-        if abs(e_merit_db - e_merit) > 0.01:
-            assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
+        if e_start:
+            e_merit = gap_size / gmpy2.log(e_start)
+            if abs(e_merit_db - e_merit) > 0.01:
+                assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
+        else:
+            e_merit = e_merit_db
+            print(f"Unable to process startprime={e_startprime}")
     else:
         e_start = None
         e_merit = 0
