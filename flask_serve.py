@@ -25,7 +25,7 @@ app.config["SECRET_KEY"] = SECRET_KEY
 RECORDS_FN = "records.txt"
 SUBMISSIONS_FN = "submissions.txt"
 ALL_SQL_FN = "prime-gap-list/allgaps.sql"
-GAPS_DB_FN = "gaps.db"
+GAPS_DB_FN = "prime-gap-list/gaps.db"
 
 SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
@@ -707,6 +707,28 @@ def merits():
         rows.append("{} {:.4f} {}".format(*m))
 
     return Response("\n".join(rows), mimetype="text/plain")
+
+@app.route("/secret_test")
+def secret_test_page():
+    # Write to sceret table in DB
+    try:
+        db = get_db()
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS testing ("
+            "  five INTEGER PRIMARY KEY,"
+            "  time INTEGER)")
+        db.execute("INSERT OR IGNORE INTO testing VALUES(5, 1)")
+        last = db.execute("SELECT * FROM testing")
+        updated = int(time.time())
+        db.execute(f"UPDATE testing SET time={updated}")
+        db.commit()
+    except sqlite3.OperationalError as e:
+        import traceback
+        print ("Error on secret test page")
+        traceback.print_exc()
+        return str(e)
+
+    return str(updated)
 
 
 # Create background gap_worker

@@ -7,8 +7,11 @@ Performs validation then submits record.
 ```shell
 # Setup
 git clone --branch server https://github.com/primegap-list-project/prime-gap-list.git
-sqlite3 gaps.db < prime-gap-list/allgaps.sql
+
 cd prime-gap-list
+sqlite3 gaps.db < allgaps.sql
+sudo chmod 664 gaps.db
+
 git remote add upstream git@github.com:primegap-list-project/prime-gap-list.git
 git remote remove origin
 git fetch
@@ -17,18 +20,17 @@ git config --global user.email
 # Make sure ssh exists
 
 # Because of complicated configs
-truncate -s0 gaps.db; sqlite3 gaps.db < prime-gap-list/allgaps.sql
+truncate -s0 gaps.db; sqlite3 gaps.db < allgaps.sql
 touch records.txt submissions.txt
-sudo chown -R www-data records.txt submissions.txt gaps.db prime-gap-list/
-
+sudo chown -R www-data records.txt submissions.txt prime-gap-list/
 ```
 
 ### TODO
 
 * [ ] Test permissions page
   * [ ] write to records
-  * [ ] can write to db
   * [ ] verify git setup
+  * [x] can write to db
 * [ ] C?? for very large gaps.
 * [ ] Create PR for new contributor
 * [ ] Push for regular contributor
