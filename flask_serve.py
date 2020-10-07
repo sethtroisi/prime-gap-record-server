@@ -175,11 +175,13 @@ def test_one(coord, gap_size, start, discoverer):
     tests = 0
     coord.current[0] = "Testing {}".format(gap_size)
 
+    prime_test_time = time.time()
     if not gmpy2.is_prime(start):
         return False, "start not prime"
 
     if not gmpy2.is_prime(start + gap_size):
         return False, "end not prime"
+    prime_test_time = time.time() - prime_test_time
 
     assert start % 2 == 1
 
@@ -189,7 +191,9 @@ def test_one(coord, gap_size, start, discoverer):
 
     # TODO use gmpy2.next_prime()
     #   pros: faster (~2x)
-    #   cons: no status (maybe create timestamp somewhere)
+    #   cons:
+    #       * no status (maybe create timestamp somewhere)
+    #       * no test_fraction
 
     log_n = gmpy2.log(start)
     sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
@@ -218,9 +222,12 @@ def test_one(coord, gap_size, start, discoverer):
 
     if log_n > 20000 and merit < 20:
         # Megagap verification
-        if discoverer in ("MrtnRaab",):
+        if discoverer in ("M.Jansen", "MrtnRaab", "RobSmith"):
             # Tries to keep total verification time under a couple of hours
-            prp_time = log_n ** 2.5 / 2e10
+
+            # Primes take ~4.7x longer
+            prp_time = prime_test_time / 2 / 4.7
+
             # exp(gamma=0.57721) = 1.78197
             prp_count = gap_size / (gmpy2.log(sieve_primes) * 1.78197)
 
@@ -232,8 +239,9 @@ def test_one(coord, gap_size, start, discoverer):
 
     elif log_n > 5000 and merit < 20:
         # More trusted discoverers
-        if discoverer in ("Jacobsen", "M.Jansen", "RobSmith", "Rosnthal", "MrtnRaab"):
-            test_fraction = 0.7
+        if discoverer in ("Jacobsen", "Rosnthal", "M.Jansen",
+                          "MrtnRaab", "RobSmith", "S.Troisi"):
+            test_fraction = 0.1
 
     for k in range(2, gap_size, 2):
         if composite[k]: continue
