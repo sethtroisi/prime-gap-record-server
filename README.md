@@ -25,6 +25,10 @@ sudo chown -R www-data records.txt submissions.txt gaps.db prime-gap-list/
 
 ### TODO
 
+* [ ] Test permissions page
+  * [ ] write to records
+  * [ ] can write to db
+  * [ ] verify git setup
 * [ ] C?? for very large gaps.
 * [ ] Create PR for new contributor
 * [ ] Push for regular contributor

@@ -6,8 +6,7 @@
       .scroll-area, #results {
         max-height: 330px;
         max-width: 630px;
-        overflow-y: auto;
-        overflow-x: auto;
+        overflow-y: scroll;
       }
       .half-col {
         min-width: 400px;
@@ -71,9 +70,9 @@
         <h2>{{queued}} Queued</h2>
         {% if queue %}
           <div id="queue" class="scroll-area">
-          {% for line in queue %}
-            <div>{{ line }}</div>
-          {% endfor %}
+            {% for line in queue %}
+              <div>{{ line }}</div>
+            {% endfor %}
           </div>
         {% endif %}
       </span>
@@ -81,7 +80,9 @@
       {% if queue %}
       <span class="half-col">
         <h2>Live Progress</h2>
-        <div id="results">{{status}}</div>
+        <div id="results">
+            {{status}}
+        </div>
       </span>
       {% endif %}
       <hr>
@@ -91,9 +92,9 @@
       <span class="half-col">
         <h2>Recent records checked ({{ recent | length }})</h2>
         <div id="recent" class="scroll-area">
-        {% for r in recent | reverse %}
-          <div>{{ r }}</div>
-        {% endfor %}
+          {% for r in recent | reverse %}
+            <div>{{ r }}</div>
+          {% endfor %}
         </div>
         <hr>
       </span>
