@@ -14,7 +14,9 @@
         font-size: 75%;
         display: inline-block;
         vertical-align: top;
-        margin-right: 50px;
+      }
+      .half-col + .half-col {
+        margin-left: 50px;
       }
 
       h1 {
@@ -101,9 +103,9 @@
     {% endif %}
     <span class="half-col">
       {% if new_records %}
-        <h2>New Records ({{ new_records | length }})</h2>
+        <h2>New Records ({{ new_records_count }})</h2>
         <div id="records" class="scroll-area">
-        {% for r in new_records %}
+        {% for r in new_records | reverse %}
           <div>{{ r }}</div>
         {% endfor %}
         </div>

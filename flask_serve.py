@@ -61,7 +61,7 @@ class WorkCoordinator():
             with open(RECORDS_FN, "r") as f:
                 self.new_records = f.readlines()
         # Reverse list so new records are at the front.
-        self.new_records = self.new_records[::-1]
+        self.new_records = self.new_records
 
     def get_client_queue_lines(self):
         while len(self.client_queue) > self.client_size.value:
@@ -88,7 +88,7 @@ def gap_worker(coord):
         batch = coord.queue.get()
         verified = []
         for index, item in enumerate(batch, 1):
-            gap_size, start, _, line_fmt, sql_insert = item
+            gap_size, start, improved, line_fmt, sql_insert = item
             human = sql_insert[-1]
 
             batch_message = "{} of {} ".format(index, len(batch))
@@ -103,10 +103,18 @@ def gap_worker(coord):
                 batch_message if len(batch) > 1 else "", gap_size)
 
             if success:
+                if success == 2:
+                    print("Changing to C??")
+                    assert "C?P" in line_fmt
+                    line_fmt = line_fmt.replace("C?P", "C??")
+                    assert sql_insert[2:5] == ("C", "?", "P"), sql_insert
+                    sql_insert = sql_insert[:4] + ("?",) + sql_insert[5:]
+                    item = (gap_size, start, improved, line_fmt, sql_insert)
+
                 status = "Verified! ({:.1f}s)".format(end_t - start_t)
                 verified.append(item)
                 coord.recent.append((gap_size, human, status))
-                coord.new_records.insert(0, line_fmt)
+                coord.new_records.append(line_fmt)
             else:
                 coord.recent.append((gap_size, human, status))
 
@@ -140,8 +148,9 @@ def gap_worker(coord):
 
         if len(commit_msgs) > 1:
             # TODO What to do if multiple authors?
-            header = "{} updates {}by {} (merit +{:.2f}) gaps {} to {}\n".format(
-                len(commit_msgs) - new_records,
+            updates = len(verified) - new_records
+            header = "{}{}by {} (merit +{:.2f}) gaps {} to {}\n".format(
+                "{} updates ".format(updates) if updates else "",
                 "{} new gaps ".format(new_records) if new_records else "",
                 discoverer,
                 improved_merit,
@@ -183,6 +192,8 @@ def test_one(coord, gap_size, start, discoverer):
         return False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
+    verified_type = 1
+
     assert start % 2 == 1
 
     tests += 2
@@ -220,31 +231,32 @@ def test_one(coord, gap_size, start, discoverer):
     merit = gap_size / log_n
     test_fraction = 1
 
-    if log_n > 20000 and merit < 20:
-        # Megagap verification
-        if discoverer in ("M.Jansen", "MrtnRaab", "RobSmith"):
-            # Tries to keep total verification time under a couple of hours
+    # Primes take ~4.7x longer
+    prp_time = prime_test_time / 2 / 4.7
 
-            # Primes take ~4.7x longer
-            prp_time = prime_test_time / 2 / 4.7
+    # exp(gamma=0.57721) = 1.78197
+    prp_count = gap_size / float(gmpy2.log(sieve_primes) * 1.78197)
 
-            # exp(gamma=0.57721) = 1.78197
-            prp_count = gap_size / (gmpy2.log(sieve_primes) * 1.78197)
+    expected_time = prp_time * prp_count
 
-            test_fraction = (3600 / prp_time) / prp_count
-            print ("MEGAGAP: log_n: {} (estimated prp_time: {:.1f}s x ~{}) "
-                   "merit: {:.1f} test_fraction: {:.4f} (1 in {:.1f})".format(
-                round(log_n), prp_time, round(prp_count),
-                merit, test_fraction, 1 / test_fraction))
+    if expected_time > 5 * 60 and merit < 22:
+        print ("MEGAGAP: log_n: {:.0f} (estimated prp_time: {:.1f} = {:.2f}s x ~{:.1f}) "
+               "merit: {:.1f}".format(
+            log_n, expected_time, prp_time, prp_count, merit))
 
-    elif log_n > 5000 and merit < 20:
-        # More trusted discoverers
         if discoverer in ("Jacobsen", "Rosnthal", "M.Jansen",
                           "MrtnRaab", "RobSmith", "S.Troisi"):
-            test_fraction = 0.1
+            # Change to C??
+            verified_type = 2
+            test_fraction = 60 / expected_time
+        else:
+            verified_type = 2
+            test_fraction = 10 / expected_time
 
+    composites = 2 # for endpoints
     for k in range(2, gap_size, 2):
         if composite[k]: continue
+        composites += 1
 
         if test_fraction > 0 and random.random() > test_fraction:
             continue
@@ -253,10 +265,10 @@ def test_one(coord, gap_size, start, discoverer):
             return False, "start + {} is prime".format(k)
 
         tests += 1
-        coord.current[0] = "Testing {}, {}/{} done, {} PRPs performed".format(
-            gap_size, k+1, gap_size, tests)
+        coord.current[0] = "Testing {}, {}/{} done, {}/{} PRPs performed".format(
+            gap_size, k+1, gap_size, tests, composites)
 
-    return True, "Verified"
+    return verified_type, "Verified"
 
 
 def update_all_sql(gap_size, sql_insert):
@@ -509,7 +521,11 @@ def possible_add_to_queue(
     primedigits = len(str(start_n))
 
     # How to choice this better?
-    ccc_type = "C?P" # TODO describe this somewhere
+    # See https://primegap-list-project.github.io/drtrnicely-format-legacy/
+    # C = Common, Classic
+    # ? = Not first occurrence
+    # P = probabilistic primes (at endpoints)
+    ccc_type = "C?P"
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
         gap_size, ccc_type, newmerit_fmt, discoverer,
@@ -676,7 +692,8 @@ def status():
     return render_template(
         "status.html",
         running=worker.is_alive(),
-        new_records=coord.new_records,
+        new_records_count=len(coord.new_records),
+        new_records=coord.new_records[-100:],
         recent=coord.recent[-50:],
         queue=queue_data,
         queued=queued)
