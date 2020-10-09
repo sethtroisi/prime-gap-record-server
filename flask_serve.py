@@ -78,7 +78,7 @@ global_coord = WorkCoordinator()
 
 
 def gap_worker(coord):
-    time.sleep(4)
+    time.sleep(2)
     print("Gap Worker running")
 
     while True:
@@ -124,17 +124,18 @@ def gap_worker(coord):
         if not verified:
             continue
 
-        # process the batch into commit, records.
+        with open(ALL_SQL_FN, "r") as f:
+            all_sql_lines = f.readlines()
+            assert all_sql_lines, f"Empty {ALL_SQL_FN!r}"
+
+        # process the batch into commits
         commit_msgs = []
         new_records = 0
         improved_merit = 0
         for gap_size, _, improved, line_fmt, sql_insert in verified:
-            # Write to record file
-            with open(RECORDS_FN, "a") as f:
-                f.write(line_fmt + "\n")
 
             # Write to allgaps.sql (sorted), kinda slow
-            replace = update_all_sql(gap_size, sql_insert)
+            replace = update_all_sql(all_sql_lines, gap_size, sql_insert)
             new_records += not replace
             improved_merit += improved
 
@@ -142,6 +143,16 @@ def gap_worker(coord):
                 "Improved" if replace else "New",
                 sql_insert[0], sql_insert[7], discoverer)
             commit_msgs.append(commit_msg)
+
+        # Write to record file
+        with open(RECORDS_FN, "a") as f:
+            for _, _, _, line_fmt, _ in verified:
+                f.write(line_fmt + "\n")
+
+        # Write lines back to file
+        with open(ALL_SQL_FN, "w") as f:
+            for line in all_sql_lines:
+                f.write(line)
 
         if len(commit_msgs) > 1:
             # TODO What to do if multiple authors?
@@ -249,10 +260,10 @@ def test_one(coord, gap_size, start, discoverer):
                           "MrtnRaab", "RobSmith", "S.Troisi"):
             # Change to C??
             verified_type = 2
-            test_fraction = 60 / expected_time
+            test_fraction = 1 * 60 / expected_time
         else:
             verified_type = 2
-            test_fraction = 10 / expected_time
+            test_fraction = 10 * 60 / expected_time
 
     composites = 2 # for endpoints
     for k in range(2, gap_size, 2):
@@ -272,14 +283,8 @@ def test_one(coord, gap_size, start, discoverer):
     return verified_type, "Verified"
 
 
-def update_all_sql(gap_size, sql_insert):
-    # TODO this method is SLOW it reads and writes FOR EACH INSERT
-
-    sql_lines = []
-    with open(ALL_SQL_FN, "r") as f:
-        sql_lines = f.readlines()
-
-    assert 110 < len(sql_lines) < 110000, len(sql_lines)
+def update_all_sql(all_sql_lines, gap_size, sql_insert):
+    assert 110 < len(all_sql_lines) < 110000, len(all_sql_lines)
 
     # HACK: want merit to be like 15.230 not 15.23 so used {:.3f} not round
     # Downside is str(sql_insert) changes that to '15.230' so convert back here.
@@ -291,7 +296,7 @@ def update_all_sql(gap_size, sql_insert):
     LINE_PREFIX = "INSERT INTO gaps"
 
     # Find the right place in the insert section
-    for index, line in enumerate(sql_lines):
+    for index, line in enumerate(all_sql_lines):
         if line.startswith(LINE_PREFIX):
             # Get the first number from the line
             match = re.search(r"\(([0-9]+),", line)
@@ -302,23 +307,20 @@ def update_all_sql(gap_size, sql_insert):
 
     # Format is wrong
     assert 100 < index, ("SMALL INDEX", index, new_line)
-    assert LINE_PREFIX in line[index+1], ("LARGE INDEX", index, new_line)
+    assert index+10 < len(all_sql_lines), ("LARGE INDEX", index, new_line)
+    assert LINE_PREFIX in all_sql_lines[index+1], ("LARGE INDEX", index, new_line)
 
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(gap_size)
-    replace = start_insert_line in sql_lines[index]
+    replace = start_insert_line in all_sql_lines[index]
     if replace:
-        print ("  Replacing ", sql_lines[index].strip())
+        print ("  Replacing ", all_sql_lines[index].strip())
         print ("  With      ", new_line.strip())
-        sql_lines[index] = new_line
+        all_sql_lines[index] = new_line
     else:
         print (" !INSERTING! ", new_line.strip())
-        sql_lines.insert(index, new_line)
+        all_sql_lines.insert(index, new_line)
 
-    # Write file back out (slow to do each time, but unavoidable?)
-    with open(ALL_SQL_FN, "w") as f:
-        for line in sql_lines:
-            f.write(line)
-
+    # Possible doesn't work if two updates to same gap
     return replace
 
 
@@ -512,6 +514,9 @@ def possible_add_to_queue(
         return False, "gapstart={} is to large at this time".format(gap_start)
     if start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
+
+    if start_n == e_start:
+        return False, "Already submitted"
 
     new_merit = gap_size / gmpy2.log(start_n)
     if e_start is not None and start_n >= e_start:
