@@ -56,11 +56,11 @@ class WorkCoordinator():
 
         # Records uploaded via this tool
         # list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
-        self.new_records = []
+        new_records = []
         if os.path.isfile(RECORDS_FN):
             with open(RECORDS_FN, "r") as f:
-                self.new_records = f.readlines()
-        self.new_records = multiprocessing.Manager().list(self.new_records)
+                new_records = f.readlines()
+        self.new_records = multiprocessing.Manager().list(new_records)
 
     def get_client_queue_lines(self):
         while len(self.client_queue) > self.client_size.value:
@@ -232,8 +232,8 @@ def test_one(coord, gap_size, start, discoverer):
     merit = gap_size / log_n
     test_fraction = 1
 
-    # Primes take ~4.7x longer
-    prp_time = prime_test_time / 2 / 4.7
+    # Primes take ~4.5x longer
+    prp_time = prime_test_time / 2 / 4.5
 
     # exp(gamma=0.57721) = 1.78197
     prp_count = gap_size / float(gmpy2.log(sieve_primes) * 1.78197)
@@ -460,6 +460,7 @@ def parse_num(num_str):
 
 def possible_add_to_queue(
         coord,
+        records,
         gap_size, gap_start,
         discoverer,
         discover_date):
@@ -470,7 +471,7 @@ def possible_add_to_queue(
             gap_size)
 
     gap_start = gap_start.replace(" ", "")
-    if any(gap_start in line for line in coord.new_records):
+    if any(gap_start in line for line in records):
         return False, "Already added to records"
 
     if (gap_size, gap_start) in coord.processed:
@@ -597,9 +598,13 @@ def possible_add_to_queue_log(coord, form):
             f.write(f"{size} {when} {who} 1.234 {start}\n")
         f.write("\n\n")
 
+    # So that all lines don't have to grab lock.
+    new_records = list(coord.new_records)
+
     batch = []
     for size, start, who, when in line_datas:
-        item, status = possible_add_to_queue(coord, size, start, who, when)
+        item, status = possible_add_to_queue(
+            coord, new_records, size, start, who, when)
         if item:
             batch.append(item)
         statuses.append(status)
