@@ -273,11 +273,13 @@ def test_one(coord, gap_size, start, discoverer):
 
 
 def update_all_sql(gap_size, sql_insert):
+    # TODO this method is SLOW it reads and writes FOR EACH INSERT
+
     sql_lines = []
     with open(ALL_SQL_FN, "r") as f:
         sql_lines = f.readlines()
 
-    assert 110 < len(sql_lines) < 100000, len(sql_lines)
+    assert 110 < len(sql_lines) < 110000, len(sql_lines)
 
     # HACK: want merit to be like 15.230 not 15.23 so used {:.3f} not round
     # Downside is str(sql_insert) changes that to '15.230' so convert back here.
@@ -285,9 +287,12 @@ def update_all_sql(gap_size, sql_insert):
     str_sql_insert = re.sub(r",'([0-9.]+)',", r",\1,", str_sql_insert)
     new_line = SQL_INSERT_PREFIX + str_sql_insert + ";\n"
 
+    # TODO: Could start near line 2*gaps+1
+    LINE_PREFIX = "INSERT INTO gaps"
+
     # Find the right place in the insert section
     for index, line in enumerate(sql_lines):
-        if line.startswith("INSERT INTO gaps"):
+        if line.startswith(LINE_PREFIX):
             # Get the first number from the line
             match = re.search(r"\(([0-9]+),", line)
             assert match
@@ -296,7 +301,8 @@ def update_all_sql(gap_size, sql_insert):
                 break
 
     # Format is wrong
-    assert (100 < index < 94000), ("WEIRD INDEX", index, new_line)
+    assert 100 < index, ("SMALL INDEX", index, new_line)
+    assert LINE_PREFIX in line[index+1], ("LARGE INDEX", index, new_line)
 
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(gap_size)
     replace = start_insert_line in sql_lines[index]
