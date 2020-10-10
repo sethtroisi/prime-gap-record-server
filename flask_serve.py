@@ -31,7 +31,7 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 REALLY_LARGE = 10 ** 28000
-SIEVE_PRIMES = 40 * 10 ** 6
+SIEVE_PRIMES = 80 * 10 ** 6
 
 # Globals for exchanging queue info with background thread
 class WorkCoordinator():
@@ -223,7 +223,7 @@ def test_one(coord, gap_size, start, discoverer):
 
     composite = [False for i in range(gap_size+1)]
     primes = [True for i in range(sieve_primes//2+1)]
-    for p in range(3, sieve_primes):
+    for p in range(3, sieve_primes, 2):
         if not primes[p//2]: continue
 
         # Sieve other primes
@@ -246,8 +246,8 @@ def test_one(coord, gap_size, start, discoverer):
     # Primes take ~4.5x longer
     prp_time = prime_test_time / 2 / 4.5
 
-    # exp(gamma=0.57721) = 1.78197
-    prp_count = gap_size / float(gmpy2.log(sieve_primes) * 1.78197)
+    # exp(gamma=0.57721) = 1.78107
+    prp_count = gap_size / float(gmpy2.log(sieve_primes) * 1.78107)
 
     expected_time = prp_time * prp_count
 
