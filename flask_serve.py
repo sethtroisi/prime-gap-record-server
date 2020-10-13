@@ -221,7 +221,7 @@ def test_one(coord, gap_size, start, discoverer):
     log_n = gmpy2.log(start)
     sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
 
-    composite = [False for i in range(gap_size+1)]
+    composite = [i % 2 == 1 for i in range(gap_size+1)]
     primes = [True for i in range(sieve_primes//2+1)]
     for p in range(3, sieve_primes, 2):
         if not primes[p//2]: continue
@@ -244,26 +244,27 @@ def test_one(coord, gap_size, start, discoverer):
     test_fraction = 1
 
     # Primes take ~4.5x longer
-    prp_time = prime_test_time / 2 / 4.5
-
-    # exp(gamma=0.57721) = 1.78107
-    prp_count = gap_size / float(gmpy2.log(sieve_primes) * 1.78107)
-
+    prp_time = prime_test_time / 2 / 4.8
+    prp_count = composite.count(False)
     expected_time = prp_time * prp_count
 
     if expected_time > 5 * 60 and merit < 22:
-        print ("MEGAGAP: log_n: {:.0f} (estimated prp_time: {:.1f} = {:.2f}s x ~{:.1f}) "
+        print ("MEGAGAP: log_n: {:.0f} (estimated prp_time: {:.1f} = {:.2f}s x ~{}) "
                "merit: {:.1f}".format(
             log_n, expected_time, prp_time, prp_count, merit))
 
         if discoverer in ("Jacobsen", "Rosnthal", "M.Jansen",
                           "MrtnRaab", "RobSmith", "S.Troisi"):
+            # This discoverer's are trusted
+            verified_type = 1
+            test_fraction = 5 * 60 / expected_time
+        else:
             # Change to C??
             verified_type = 2
-            test_fraction = 1 * 60 / expected_time
-        else:
-            verified_type = 2
             test_fraction = 10 * 60 / expected_time
+
+    if test_fraction > 0.8:
+        test_fraction = 1.0
 
     composites = 2 # for endpoints
     for k in range(2, gap_size, 2):
