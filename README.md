@@ -6,18 +6,24 @@ Performs validation then submits record.
 
 ```shell
 # Setup
-git clone --branch server https://github.com/primegap-list-project/prime-gap-list.git
+git clone https://github.com/sethtroisi/prime-gap-verify.git
+cd prime-gap-verify
+make
+cd ..
+cp prime-gap-verify/large_prime .
+rm -rf prime-gap-verify
 
+git clone --branch server https://github.com/primegap-list-project/prime-gap-list.git
 cd prime-gap-list
 sqlite3 gaps.db < allgaps.sql
 sudo chmod 664 gaps.db
-
 git remote add upstream git@github.com:primegap-list-project/prime-gap-list.git
 git remote remove origin
 git fetch
 git config --global user.name
 git config --global user.email
-# Make sure ssh exists
+# Make sure ssh works
+cd ..
 
 # Because of complicated configs
 truncate -s0 gaps.db; sqlite3 gaps.db < allgaps.sql

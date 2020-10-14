@@ -95,7 +95,7 @@ def gap_worker(coord):
 
             start_t = time.time()
             discoverer = sql_insert[5]
-            success, status = test_one(coord, gap_size, start, discoverer)
+            success, status = test_one(coord, gap_size, start, discoverer, human)
             end_t = time.time()
 
             coord.current[0] = "Postprocessing {}{}".format(
@@ -192,7 +192,63 @@ def gap_worker(coord):
             start_count[0], end_count[0]))
 
 
-def test_one(coord, gap_size, start, discoverer):
+def sieve_interval_python(start, gap_size):
+    log_n = gmpy2.log(start)
+    sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
+
+    composite = [i % 2 == 1 for i in range(gap_size+1)]
+    primes = [True for i in range(sieve_primes//2+1)]
+    for p in range(3, sieve_primes, 2):
+        if not primes[p//2]: continue
+
+        # Sieve other primes
+        for m in range(p*p//2, sieve_primes//2+1, p):
+            primes[m] = False
+
+        # Remove any numbers in the interval divisible by p
+        first = (-start) % p
+        for m in range(first, gap_size+1, p):
+            # assert (start + m) % p == 0
+            composite[m] = True
+
+    return composite
+
+
+def sieve_interval(human, start, gap_size):
+    # if human is "standard" form use `large_sieve` from
+    # https://github.com/sethtroisi/prime-gap-verify
+    # TODO: try to share some python parsing code too.
+
+    parsed = parse_standard_form_str(human)
+    if parsed:
+        m, p, d, a = parsed
+        assert p in range(30, 80000), p
+        assert m in range(2 ** 62), m
+        assert d in range(2 ** 62), d
+        assert -10 ** 7 <= a < 0, a
+
+        results = subprocess.run(
+            ["./large_sieve", *map(str, (m, p, d, a)), str(gap_size)],
+            capture_output=True, text=True)
+
+        if not results.returncode == 0:
+            print ("LARGE_SIEVE ERROR(1):", results.stdout)
+            print ("LARGE_SIEVE ERROR(2):", results.stderr)
+        else:
+            # Everything not mentioned by the sieve is composite
+            composite = [True for i in range(gap_size+1)]
+            to_test = results.stdout.strip().split("\n")
+            for line in to_test:
+                temp = int(line.split(" ")[-1])
+                assert a <= temp <= a + gap_size
+                composite[temp - a] = False
+            return composite
+
+    # fallback to python sieve
+    return sieve_interval_python(start, gap_size)
+
+
+def test_one(coord, gap_size, start, discoverer, human):
     tests = 0
     coord.current[0] = "Testing {}".format(gap_size)
 
@@ -212,34 +268,12 @@ def test_one(coord, gap_size, start, discoverer):
     coord.current[0] = "Testing {}, {}/{} done, {} PRPs performed".format(
         gap_size, 2, gap_size, tests)
 
-    # TODO use gmpy2.next_prime()
-    #   pros: faster (~2x)
-    #   cons:
-    #       * no status (maybe create timestamp somewhere)
-    #       * no test_fraction
-
-    log_n = gmpy2.log(start)
-    sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
-
-    composite = [i % 2 == 1 for i in range(gap_size+1)]
-    primes = [True for i in range(sieve_primes//2+1)]
-    for p in range(3, sieve_primes, 2):
-        if not primes[p//2]: continue
-
-        # Sieve other primes
-        for m in range(p*p//2, sieve_primes//2+1, p):
-            primes[m] = False
-
-        # Remove any numbers in the interval divisible by p
-        first = (-start) % p
-        for m in range(first, gap_size+1, p):
-            # assert (start + m) % p == 0
-            composite[m] = True
+    composite = sieve_interval(human, start, gap_size)
 
     # Endpoints have been verified prime, something is very wrong.
     assert composite[0] is False and composite[-1] is False
 
-    # TODO: Do something better here based on name, size...
+    log_n = gmpy2.log(start)
     merit = gap_size / log_n
     test_fraction = 1
 
@@ -257,7 +291,7 @@ def test_one(coord, gap_size, start, discoverer):
                           "MrtnRaab", "RobSmith", "S.Troisi"):
             # This discoverer's are trusted
             verified_type = 1
-            test_fraction = 5 * 60 / expected_time
+            test_fraction = 1 * 60 / expected_time
         else:
             # Change to C??
             verified_type = 2
@@ -370,57 +404,67 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
+# Standard form         | m * P# / d +- a
 NUMBER_RE_1 = re.compile(r"^(\d+)\*\(?(\d+)#\)?/(\d+)([+-]\d+)$")
+# No m                  | P# / d +- a
 NUMBER_RE_2 = re.compile(r"^\(?(\d+)#\)?/(\d+)([+-]\d+)$")
-NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)([+-]\d+)$")
-NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)([+-]\d+)$")
-NUMBER_RE_5 = re.compile(r"^(\d+)\*(\d+)#/(\d+)#([+-]\d+)$")
+# primorial d           | m * P# / d# +- a
+NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/(\d+)#([+-]\d+)$")
+# two comp primorial d  | m * P# / (d# * d2) +- a
+NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)([+-]\d+)$")
+# two component d       | m * P# / (d1 * d2) +- a
+NUMBER_RE_5 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)([+-]\d+)$")
+# power form            | b ^ P +- a
 NUMBER_RE_6 = re.compile(r"^(\d+)\^(\d+)([+-]\d+)$")
-def parse_num_fast(start):
-    start = start.replace(" ", "")
-    num = None
-    if start.isdigit():
-        return int(start)
 
-    num_match = NUMBER_RE_1.match(start)
+
+def parse_standard_form_str(num_str):
+    '''Return (m, P, d, a) => m * P#/d + a, (with a < 0)'''
+
+    num_match = NUMBER_RE_1.match(num_str)
     if num_match:
-        m, p, d, a = map(int, num_match.groups())
-        K = m * gmpy2.primorial(p)
-        assert K % d == 0
-        return K // d + a
+        return map(int, num_match.groups())
 
-    num_match = NUMBER_RE_2.match(start)
+    num_match = NUMBER_RE_2.match(num_str)
     if num_match:
         p, d, a = map(int, num_match.groups())
-        K = gmpy2.primorial(p)
-        assert K % d == 0
+        return (1, p, d, a)
+
+    num_match = NUMBER_RE_3.match(num_str)
+    if num_match:
+        m, p, dp, a = map(int, num_match.groups())
+        D = gmpy2.primorial(dp)
+        return (m, p, D, a)
+
+    num_match = NUMBER_RE_4.match(num_str)
+    if num_match:
+        m, p, d1, d2, a = map(int, num_match.groups())
+        D = gmpy2.primorial(d1) * d2
+        return (m, p, D, a)
+
+    num_match = NUMBER_RE_5.match(num_str)
+    if num_match:
+        m, p, d1, d2, a = map(int, num_match.groups())
+        D = d1 * d2
+        return (m, p, D, a)
+
+    return None
+
+
+def parse_num_fast(num_str):
+    num_str = num_str.replace(" ", "")
+    if num_str.isdigit():
+        return int(num_str)
+
+    parsed = parse_standard_form_str(num_str)
+    if parsed:
+        m, p, d, a = parsed
+        assert a < 0, (num_str, parsed)
+        K = m * gmpy2.primorial(p)
+        assert K % d == 0, (num_str, parsed)
         return K // d + a
 
-    num_match = NUMBER_RE_3.match(start)
-    if num_match:
-        m, p, d1, d2, a = map(int, num_match.groups())
-        K = m * gmpy2.primorial(p)
-        D = gmpy2.primorial(d1) * d2
-        assert K % D == 0
-        return K // D + a
-
-    num_match = NUMBER_RE_4.match(start)
-    if num_match:
-        m, p, d1, d2, a = map(int, num_match.groups())
-        K = m * gmpy2.primorial(p)
-        D = d1 * d2
-        assert K % D == 0
-        return K // D + a
-
-    num_match = NUMBER_RE_5.match(start)
-    if num_match:
-        m, p, d, a = map(int, num_match.groups())
-        K = m * gmpy2.primorial(p)
-        D = gmpy2.primorial(d)
-        assert K % D == 0
-        return K // D + a
-
-    num_match = NUMBER_RE_6.match(start)
+    num_match = NUMBER_RE_6.match(num_str)
     if num_match:
         b, p, a = map(int, num_match.groups())
         return b ** p + a
@@ -560,8 +604,8 @@ def possible_add_to_queue(
 
 def possible_add_to_queue_log(coord, form):
     discoverer = form.discoverer.data
+    is_log_discoverer = discoverer.lower() in ("file", "log")
     log_data = form.logdata.data
-
     # Not yet checked for > previous records
     line_datas = []
     statuses = []
@@ -579,13 +623,17 @@ def possible_add_to_queue_log(coord, form):
                        r"([\d.]+)\s+") + primorial_re
         match = re.search(full_log_re, line)
         if match:
-            if discoverer.lower() not in ("file", "log"):
-                statuses.append("Must set discoverer=log to use full line format")
-                continue
-            else:
+            if is_log_discoverer:
                 line_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
                 line_datas.append((int(match.group(1)), match.group(5), match.group(3), line_date))
                 continue
+            else:
+                statuses.append("Must set discoverer=log to use full line format")
+                continue
+
+        if is_log_discoverer:
+            statuses.append("Must set real discoverer")
+            continue
 
         # <gap> <experected_merit> <START>
         log_re = r"(\d+)\s+([\d.]+)\s+" + primorial_re
