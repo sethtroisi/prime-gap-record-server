@@ -37,14 +37,29 @@ var svg = d3.select("body")
     var x = d3.scaleLinear().domain(d3.extent(data, d => parseInt(d.gapsize))).range([0, width]);
     var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
 
-    var discoverer_count = {};
+    var discoverer_count = {"other": 0};
     data.forEach(function(d) {
       disc = d.discoverer;
       if (!discoverer_count[disc]) discoverer_count[disc] = 0;
       discoverer_count[disc]++;
     });
 
-    var discoverer_color = d3.scaleOrdinal(d3.schemeCategory20)
+    var one_percent = data.length / 100;
+
+    // Sort by count (for label)
+    var top_discoverers = ["other"];
+    for (var disc in discoverer_count) {
+      if (discoverer_count[disc] > one_percent) {
+        top_discoverers.push(disc);
+      } else {
+        discoverer_count["other"] += discoverer_count[disc];
+      }
+    }
+
+    top_discoverers.sort(function(a, b) { return discoverer_count[b] - discoverer_count[a]; });
+
+    var discoverer_color = d3.scaleOrdinal(d3.schemeCategory20).domain(top_discoverers);
+
 
     // Add the X Axis
     svg.append("g")
@@ -57,7 +72,14 @@ var svg = d3.select("body")
       .attr("class", "y axis")
       .call(d3.axisLeft(y));
 
-    var one_percent = data.length / 100;
+    function who(d) {
+      return discoverer_count[d] > one_percent ? d : "other";
+    }
+
+    function who_safe(name) {
+      return name.replace(/\W/g, "");
+    }
+
 
     // Add dots
     svg.append('g')
@@ -67,16 +89,21 @@ var svg = d3.select("body")
       .append("circle")
         .attr("cx", d => x(d.gapsize))
         .attr("cy", d => y(d.merit))
-      .style("fill", d => {var t = discoverer_color(discoverer_count[d.discoverer] > one_percent ? d.discoverer : "other");
-        return t;})
         .attr("r", 1.5)
+        .style("fill", d => discoverer_color(who(d.discoverer)))
+        .attr("class", d => who_safe(who(d.discoverer)) );
 
       // draw legend
       var legend = svg.selectAll(".legend")
           .data(discoverer_color.domain())
           .enter().append("g")
-            .attr("class", "legend")
-            .attr("transform", function(d, i) { return "translate(0," + (height - 50 - i * 20) + ")"; });
+            .attr("class", d => "legend " + who_safe(d))
+            .attr("transform", function(d, i) { return "translate(0," + (height - 50 - i * 20) + ")"; })
+            .on("click", function(d){
+              var turn_on = (this.active == true)
+              d3.selectAll("." + who_safe(d)).style("opacity", turn_on ? "1" : "0.1");
+              this.active = !turn_on;
+            });
 
       // draw legend colored rectangles
       legend.append("rect")
@@ -91,8 +118,7 @@ var svg = d3.select("body")
           .attr("y", 9)
           .attr("dy", ".35em")
           .style("text-anchor", "end")
-          .text(function(d) { return d + (d == "other" ? "" : "(" + discoverer_count[d] + ")");})
-
+          .text(d => d + "(" + discoverer_count[d] + ")");
 });
 
 </script>
