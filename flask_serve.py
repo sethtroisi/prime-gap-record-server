@@ -14,6 +14,9 @@ from wtforms import SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired
 from wtforms_components import IntegerField, DateField, DateRange
 
+import primegapverify
+
+
 
 print("Setting up prime-records controller")
 
@@ -192,34 +195,13 @@ def gap_worker(coord):
             start_count[0], end_count[0]))
 
 
-def sieve_interval_python(start, gap_size):
-    log_n = gmpy2.log(start)
-    sieve_primes = max(1000, min(SIEVE_PRIMES, int(log_n ** 2)))
-
-    composite = [i % 2 == 1 for i in range(gap_size+1)]
-    primes = [True for i in range(sieve_primes//2+1)]
-    for p in range(3, sieve_primes, 2):
-        if not primes[p//2]: continue
-
-        # Sieve other primes
-        for m in range(p*p//2, sieve_primes//2+1, p):
-            primes[m] = False
-
-        # Remove any numbers in the interval divisible by p
-        first = (-start) % p
-        for m in range(first, gap_size+1, p):
-            # assert (start + m) % p == 0
-            composite[m] = True
-
-    return composite
-
 
 def sieve_interval(human, start, gap_size):
     # if human is "standard" form use `large_sieve` from
     # https://github.com/sethtroisi/prime-gap-verify
     # TODO: try to share some python parsing code too.
 
-    parsed = parse_standard_form_str(human)
+    parsed = primegapverify.parse_primorial_standard_form(human)
     if parsed:
         m, p, d, a = parsed
         assert p in range(30, 80000), p
@@ -227,25 +209,12 @@ def sieve_interval(human, start, gap_size):
         assert d in range(2 ** 62), d
         assert -10 ** 7 <= a < 0, a
 
-        results = subprocess.run(
-            ["./large_sieve", *map(str, (m, p, d, a)), str(gap_size)],
-            capture_output=True, text=True)
+    num = primegapverify.parse(human)
+    assert num, "should be parsable: " + human
 
-        if not results.returncode == 0:
-            print ("LARGE_SIEVE ERROR(1):", results.stdout)
-            print ("LARGE_SIEVE ERROR(2):", results.stderr)
-        else:
-            # Everything not mentioned by the sieve is composite
-            composite = [True for i in range(gap_size+1)]
-            to_test = results.stdout.strip().split("\n")
-            for line in to_test:
-                temp = int(line.split(" ")[-1])
-                assert a <= temp <= a + gap_size
-                composite[temp - a] = False
-            return composite
-
-    # fallback to python sieve
-    return sieve_interval_python(start, gap_size)
+    composite = primegapverify.sieve(num, gap_size)
+    assert len(composite) == gap_size + 1, "Using old version of primegapverify"
+    return composite
 
 
 def test_one(coord, gap_size, start, discoverer, human):
