@@ -590,7 +590,7 @@ def possible_add_to_queue(
         discover_date.isoformat(), primedigits, gap_start)
 
     year = discover_date.year
-    assert 2015 <= year <= 2024, year
+    assert 2010 <= year <= 2024, year
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
@@ -610,8 +610,8 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
-    #Primorial in the form {m*P#/d-s, m*P#/d#-s, P#/d-s}
-    primorial_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+)"
+    #Primorial in the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p-a}
+    primorial_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|\d+\^\d+-\d+)"
 
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
@@ -798,6 +798,24 @@ def merits():
         rows.append("{} {:.4f} {}".format(*m))
 
     return Response("\n".join(rows), mimetype="text/plain")
+
+
+@app.route("/graph_merit.csv")
+def graph_merit_csv():
+    merits = get_db().execute(
+        "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < 15000 ORDER BY gapsize ASC")
+    return Response(
+        "gapsize,merit,discoverer\n" +
+            "\n".join(",".join(map(str, row)) for row in merits),
+        mimetype="text/plain"
+    )
+
+
+@app.route("/graphs")
+@app.route("/graphs.html")
+def graphs():
+    return app.send_static_file("graphs.html")
+
 
 @app.route("/secret_test")
 def secret_test_page():

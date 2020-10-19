@@ -1,0 +1,99 @@
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="utf-8">
+    <title>Prime Gap Graphs</title>
+</head>
+
+<body id="body">
+    <h1>
+      Prime Gap Graphs
+    </h1>
+     <a href="https://primegap-list-project.github.io/">More at Prime Gap List Project</a>
+     <div id="meritgraph"></div>
+</body>
+
+<script src="https://d3js.org/d3.v4.js"></script>
+<script type="text/javascript">
+
+// set the dimensions and margins of the graph
+var margin = {top: 10, right: 30, bottom: 30, left: 60},
+    width = window.innerWidth - 100 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+// append the svg object to the body of the page
+var svg = d3.select("body")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+  //Read the data
+  d3.csv("graph_merit.csv", function(data) {
+
+    // Scale the range of the data
+    var x_vals = d3.extent(data, function(d) { return d.gapsize; });
+    var x = d3.scaleLinear().domain(d3.extent(data, d => parseInt(d.gapsize))).range([0, width]);
+    var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
+
+    var discoverer_count = {};
+    data.forEach(function(d) {
+      disc = d.discoverer;
+      if (!discoverer_count[disc]) discoverer_count[disc] = 0;
+      discoverer_count[disc]++;
+    });
+
+    var discoverer_color = d3.scaleOrdinal(d3.schemeCategory20)
+
+    // Add the X Axis
+    svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(d3.axisBottom(x));
+
+    // Add the Y Axis
+    svg.append("g")
+      .attr("class", "y axis")
+      .call(d3.axisLeft(y));
+
+    var one_percent = data.length / 100;
+
+    // Add dots
+    svg.append('g')
+      .selectAll("dot")
+      .data(data)
+      .enter()
+      .append("circle")
+        .attr("cx", d => x(d.gapsize))
+        .attr("cy", d => y(d.merit))
+      .style("fill", d => {var t = discoverer_color(discoverer_count[d.discoverer] > one_percent ? d.discoverer : "other");
+        return t;})
+        .attr("r", 1.5)
+
+      // draw legend
+      var legend = svg.selectAll(".legend")
+          .data(discoverer_color.domain())
+          .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", function(d, i) { return "translate(0," + (height - 50 - i * 20) + ")"; });
+
+      // draw legend colored rectangles
+      legend.append("rect")
+          .attr("x", width - 18)
+          .attr("width", 18)
+          .attr("height", 18)
+          .style("fill", discoverer_color);
+
+      // draw legend text
+      legend.append("text")
+          .attr("x", width - 24)
+          .attr("y", 9)
+          .attr("dy", ".35em")
+          .style("text-anchor", "end")
+          .text(function(d) { return d + (d == "other" ? "" : "(" + discoverer_count[d] + ")");})
+
+});
+
+</script>
+</html>
