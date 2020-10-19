@@ -30,7 +30,7 @@ var svg = d3.select("body")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
   //Read the data
-  d3.csv("graph_merit.csv", function(data) {
+  d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
     // Scale the range of the data
     var x_vals = d3.extent(data, function(d) { return d.gapsize; });

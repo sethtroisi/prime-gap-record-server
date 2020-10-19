@@ -802,8 +802,15 @@ def merits():
 
 @app.route("/graph_merit.csv")
 def graph_merit_csv():
+    max_gap = request.args.get("max")
+    if max_gap and max_gap.isdigit():
+        max_gap = int(max_gap)
+    else:
+        max_gap = 10000
+
     merits = get_db().execute(
-        "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < 15000 ORDER BY gapsize ASC")
+        "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
+        (min(100000, max_gap),))
     return Response(
         "gapsize,merit,discoverer\n" +
             "\n".join(",".join(map(str, row)) for row in merits),
