@@ -5,6 +5,8 @@ A frontend to submit records to [prime-gap-list](https://github.com/primegap-lis
 Performs validation then submits record.
 
 ```shell
+pip install gmpy2 primegapverify
+
 # Setup
 git clone https://github.com/sethtroisi/prime-gap-verify.git
 cd prime-gap-verify

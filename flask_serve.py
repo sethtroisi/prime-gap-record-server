@@ -404,51 +404,8 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-# Standard form         | m * P# / d +- a
-NUMBER_RE_1 = re.compile(r"^(\d+)\*\(?(\d+)#\)?/(\d+)([+-]\d+)$")
-# No m                  | P# / d +- a
-NUMBER_RE_2 = re.compile(r"^\(?(\d+)#\)?/(\d+)([+-]\d+)$")
-# primorial d           | m * P# / d# +- a
-NUMBER_RE_3 = re.compile(r"^(\d+)\*(\d+)#/(\d+)#([+-]\d+)$")
-# two comp primorial d  | m * P# / (d# * d2) +- a
-NUMBER_RE_4 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)#\*(\d+)\)([+-]\d+)$")
-# two component d       | m * P# / (d1 * d2) +- a
-NUMBER_RE_5 = re.compile(r"^(\d+)\*(\d+)#/\((\d+)\*(\d+)\)([+-]\d+)$")
 # power form            | b ^ P +- a
 NUMBER_RE_6 = re.compile(r"^(\d+)\^(\d+)([+-]\d+)$")
-
-
-def parse_standard_form_str(num_str):
-    '''Return (m, P, d, a) => m * P#/d + a, (with a < 0)'''
-
-    num_match = NUMBER_RE_1.match(num_str)
-    if num_match:
-        return map(int, num_match.groups())
-
-    num_match = NUMBER_RE_2.match(num_str)
-    if num_match:
-        p, d, a = map(int, num_match.groups())
-        return (1, p, d, a)
-
-    num_match = NUMBER_RE_3.match(num_str)
-    if num_match:
-        m, p, dp, a = map(int, num_match.groups())
-        D = gmpy2.primorial(dp)
-        return (m, p, D, a)
-
-    num_match = NUMBER_RE_4.match(num_str)
-    if num_match:
-        m, p, d1, d2, a = map(int, num_match.groups())
-        D = gmpy2.primorial(d1) * d2
-        return (m, p, D, a)
-
-    num_match = NUMBER_RE_5.match(num_str)
-    if num_match:
-        m, p, d1, d2, a = map(int, num_match.groups())
-        D = d1 * d2
-        return (m, p, D, a)
-
-    return None
 
 
 def parse_num_fast(num_str):
@@ -456,13 +413,9 @@ def parse_num_fast(num_str):
     if num_str.isdigit():
         return int(num_str)
 
-    parsed = parse_standard_form_str(num_str)
+    parsed = primegapverify.parse(num_str)
     if parsed:
-        m, p, d, a = parsed
-        assert a < 0, (num_str, parsed)
-        K = m * gmpy2.primorial(p)
-        assert K % d == 0, (num_str, parsed)
-        return K // d + a
+        return parsed
 
     num_match = NUMBER_RE_6.match(num_str)
     if num_match:
