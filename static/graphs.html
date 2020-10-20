@@ -13,6 +13,16 @@
      <div id="meritgraph"></div>
 </body>
 
+<style>
+  .grid line {
+    stroke: #def;
+  }
+  .grid .domain {
+    display: none;
+  }
+
+</style>
+
 <script src="https://d3js.org/d3.v4.js"></script>
 <script type="text/javascript">
 
@@ -61,16 +71,19 @@ var svg = d3.select("body")
     var discoverer_color = d3.scaleOrdinal(d3.schemeCategory20).domain(top_discoverers);
 
 
+    // Add the Y Axis
+    svg.append("g")
+      .attr("class", "y axis")
+      .call(d3.axisLeft(y));
+    svg.append("g")
+      .attr("class", "y grid")
+      .call(d3.axisLeft(y).tickValues([10, 15, 20, 25, 30, 35]).tickSize(-width).tickFormat(''));
+
     // Add the X Axis
     svg.append("g")
       .attr("class", "x axis")
       .attr("transform", "translate(0," + height + ")")
       .call(d3.axisBottom(x));
-
-    // Add the Y Axis
-    svg.append("g")
-      .attr("class", "y axis")
-      .call(d3.axisLeft(y));
 
     function who(d) {
       return discoverer_count[d] > one_percent ? d : "other";
@@ -119,7 +132,34 @@ var svg = d3.select("body")
           .attr("dy", ".35em")
           .style("text-anchor", "end")
           .text(d => d + "(" + discoverer_count[d] + ")");
+
+      // Draw some merit lines.
+      // Everything starts at the origin
+      function meritLine(text, points) {
+        var g = svg.append("g");
+        g.append("path")
+            .attr("stroke", "black")
+            .attr("stroke-width", 1.8)
+            .attr("opacity", 0.6)
+            .attr("d", d3.line().x(d => x(d[0])).y(d => y(d[1]))(points))
+        g.append("text")
+            .attr("x", x(points[0][0]))
+            .attr("y", y(points[0][1] - 3))
+            .text(text);
+      }
+
+      // Gapcoin X per merit | 1000 / log(P87) => 4.99189
+      /*
+      var gapcoin = Math.log(10) * 85
+      meritLine("Gapcoin P87",
+         [[gapcoin * 23, 23],
+          [gapcoin * 33, 33]]);
+      */
+
+      meritLine("Mersenne PGS Forumites",
+                [[900, 25], [1600, 35]]);
 });
+
 
 </script>
 </html>
