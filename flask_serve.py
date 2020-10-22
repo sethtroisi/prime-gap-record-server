@@ -222,10 +222,10 @@ def test_one(coord, gap_size, start, discoverer, human):
     coord.current[0] = "Testing {}".format(gap_size)
 
     prime_test_time = time.time()
-    if not gmpy2.is_prime(start):
+    if not primegapverify.is_prime_large(start):
         return False, "start not prime"
 
-    if not gmpy2.is_prime(start + gap_size):
+    if not primegapverify.is_prime_large(start + gap_size):
         return False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
@@ -277,7 +277,7 @@ def test_one(coord, gap_size, start, discoverer, human):
         if test_fraction > 0 and random.random() > test_fraction:
             continue
 
-        if gmpy2.is_prime(start + k):
+        if primegapverify.is_prime_large(start + k):
             return False, "start + {} is prime".format(k)
 
         tests += 1
