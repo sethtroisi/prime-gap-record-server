@@ -246,8 +246,12 @@ def test_one(coord, gap_size, start, discoverer, human):
     merit = gap_size / log_n
     test_fraction = 1
 
-    # Primes take ~4.5x longer
-    prp_time = prime_test_time / 2 / 4.8
+    # Primes take ~4.5x longer (for gmpy2, but not pfgw64)
+    if gmpy2.num_digits(start, 2) <= 8000:
+        prp_time = prime_test_time / 2 / 4.8
+    else:
+        prp_time = prime_test_time / 2
+
     prp_count = composite.count(False)
     expected_time = prp_time * prp_count
 
