@@ -234,8 +234,8 @@ def test_one(coord, gap_size, start, discoverer, human):
     assert start % 2 == 1
 
     tests += 2
-    coord.current[0] = "Testing {}, {}/{} done, {} PRPs performed".format(
-        gap_size, 2, gap_size, tests)
+    coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
+        gap_size)
 
     composite = sieve_interval(human, start, gap_size)
 
