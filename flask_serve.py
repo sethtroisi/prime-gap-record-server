@@ -491,7 +491,7 @@ def possible_add_to_queue(
         discover_date.isoformat(), primedigits, gap_start)
 
     year = discover_date.year
-    assert 2010 <= year <= 2024, year
+    assert 2005 <= year <= 2030, year
     sql_insert = (gap_size, 0) + tuple(ccc_type) + (discoverer,
         year, newmerit_fmt, primedigits, gap_start)
 
@@ -520,7 +520,7 @@ def possible_add_to_queue_log(coord, form):
 
         # TODO example
         full_log_re = (r"(\d+)\s+"
-                       r"(20[12]\d-\d\d?-\d\d?)\s+([\w.]+\.?[\w.]*)\s+"
+                       r"(20[012]\d-\d\d?-\d\d?)\s+([\w.]+\.?[\w.]*)\s+"
                        r"([\d.]+)\s+") + primorial_re
         match = re.search(full_log_re, line)
         if match:
