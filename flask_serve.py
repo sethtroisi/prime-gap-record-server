@@ -373,31 +373,10 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-# power form            | b ^ P +- a
-NUMBER_RE_6 = re.compile(r"^(\d+)\^(\d+)([+-]\d+)$")
-
-
-def parse_num_fast(num_str):
-    num_str = num_str.replace(" ", "")
-    if num_str.isdigit():
-        return int(num_str)
-
+def parse_num(num_str):
     parsed = primegapverify.parse(num_str)
     if parsed:
         return parsed
-
-    num_match = NUMBER_RE_6.match(num_str)
-    if num_match:
-        b, p, a = map(int, num_match.groups())
-        return b ** p + a
-
-    return None
-
-
-def parse_num(num_str):
-    fast = parse_num_fast(num_str)
-    if fast:
-        return fast
 
     if "(" in num_str or ")" in num_str:
         return None
