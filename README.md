@@ -35,13 +35,15 @@ sudo chown -R www-data records.txt submissions.txt prime-gap-list/
 
 ### TODO
 
+* [ ] Write failed verifications to error.txt
+* [ ] Handle multiple records for same gap in same batch
 * [ ] Test permissions page
   * [ ] write to records
   * [ ] verify git setup
   * [x] can write to db
-* [ ] C?? for very large gaps.
 * [ ] Create PR for new contributor
 * [ ] Push for regular contributor
+* [x] C?? for very large gaps.
 * [x] Change to multiprocess
 * [x] Figure out out how to correctly compute merit for existing records.
 * [x] Bundle same discoverer into batches
