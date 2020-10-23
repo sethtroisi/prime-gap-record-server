@@ -418,7 +418,6 @@ def parse_num(num_str):
 
 def possible_add_to_queue(
         coord,
-        records,
         gap_size, gap_start,
         discoverer,
         discover_date):
@@ -427,10 +426,6 @@ def possible_add_to_queue(
     if gap_size <= 1200:
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
-
-    gap_start = gap_start.replace(" ", "")
-    if any(gap_start in line for line in records):
-        return False, "Already added to records"
 
     if (gap_size, gap_start) in coord.processed:
         return False, "Already processed"
@@ -563,13 +558,9 @@ def possible_add_to_queue_log(coord, form):
             f.write(f"{size} {when} {who} 1.234 {start}\n")
         f.write("\n\n")
 
-    # So that all lines don't have to grab lock.
-    new_records = list(coord.new_records)
-
     batch = []
     for size, start, who, when in line_datas:
-        item, status = possible_add_to_queue(
-            coord, new_records, size, start, who, when)
+        item, status = possible_add_to_queue(coord, size, start, who, when)
         if item:
             batch.append(item)
         statuses.append(status)
