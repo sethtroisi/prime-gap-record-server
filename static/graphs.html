@@ -68,8 +68,12 @@ var svg = d3.select("body")
 
     top_discoverers.sort(function(a, b) { return discoverer_count[b] - discoverer_count[a]; });
 
-    var discoverer_color = d3.scaleOrdinal(d3.schemeCategory20).domain(top_discoverers);
-
+    var discoverer_color;
+    if (window.location.search.match(/nocolor/)) {
+      discoverer_color = name => "#006699";
+    } else {
+      discoverer_color = d3.scaleOrdinal(d3.schemeCategory20).domain(top_discoverers);
+    }
 
     // Add the Y Axis
     svg.append("g")
@@ -102,7 +106,7 @@ var svg = d3.select("body")
       .append("circle")
         .attr("cx", d => x(d.gapsize))
         .attr("cy", d => y(d.merit))
-        .attr("r", 1.5)
+        .attr("r", 1.1)
         .style("fill", d => discoverer_color(who(d.discoverer)))
         .attr("class", d => who_safe(who(d.discoverer)) );
 

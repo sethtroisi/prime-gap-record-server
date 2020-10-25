@@ -706,7 +706,7 @@ def graph_merit_csv():
 
     merits = get_db().execute(
         "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
-        (min(100000, max_gap),))
+        (min(120000, max_gap),))
     return Response(
         "gapsize,merit,discoverer\n" +
             "\n".join(",".join(map(str, row)) for row in merits),
