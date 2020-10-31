@@ -2,6 +2,7 @@ import datetime
 import os
 import random
 import re
+import math
 import multiprocessing
 import subprocess
 import sqlite3
@@ -196,7 +197,7 @@ def gap_worker(coord):
 
 
 
-def sieve_interval(human, start, gap_size):
+def sieve_interval(human, start, gap_size, faster):
     # if human is "standard" form use `large_sieve` from
     # https://github.com/sethtroisi/prime-gap-verify
     # TODO: try to share some python parsing code too.
@@ -212,9 +213,16 @@ def sieve_interval(human, start, gap_size):
     num = primegapverify.parse(human)
     assert num, "should be parsable: " + human
 
-    composite = primegapverify.sieve(num, gap_size)
-    assert len(composite) == gap_size + 1, "Using old version of primegapverify"
-    return composite
+
+    max_prime = primegapverify.sieve_limit(math.log2(num), gap_size)
+    if faster:
+        max_prime //= 5
+
+    t0 = time.time()
+    composite = primegapverify.sieve(num, gap_size, max_prime=max_prime)
+    t1 = time.time()
+    assert len(composite) == gap_size + 1
+    return composite, t1 - t0
 
 
 def test_one(coord, gap_size, start, discoverer, human):
@@ -237,11 +245,6 @@ def test_one(coord, gap_size, start, discoverer, human):
     coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
         gap_size)
 
-    composite = sieve_interval(human, start, gap_size)
-
-    # Endpoints have been verified prime, something is very wrong.
-    assert composite[0] is False and composite[-1] is False
-
     log_n = gmpy2.log(start)
     merit = gap_size / log_n
     test_fraction = 1
@@ -252,10 +255,18 @@ def test_one(coord, gap_size, start, discoverer, human):
     else:
         prp_time = prime_test_time / 2
 
+    faster = (merit < 22) and (log_n > 6000)
+    composite, sieve_time = sieve_interval(human, start, gap_size, faster)
+    # Endpoints have been verified prime, something is very wrong.
+    assert composite[0] is False and composite[-1] is False
+
     prp_count = composite.count(False)
     expected_time = prp_time * prp_count
 
-    if expected_time > 5 * 60 and merit < 22:
+    print ("       {:30s} | {:5} PRP, expected time {:4.1f} (ends: {:.1f}, sieve: {:.1f})".format(
+        human, prp_count, expected_time, prime_test_time, sieve_time))
+
+    if expected_time > 3 * 60 and merit < 22:
         print ("MEGAGAP: log_n: {:.0f} (estimated prp_time: {:.1f} = {:.2f}s x ~{}) "
                "merit: {:.1f}".format(
             log_n, expected_time, prp_time, prp_count, merit))
