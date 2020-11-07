@@ -12,7 +12,7 @@ import gmpy2
 from flask import Flask, Response, g, render_template, request
 from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Length
 from wtforms_components import IntegerField, DateField, DateRange
 
 import primegapverify
@@ -599,7 +599,7 @@ class GapLogForm(FlaskForm):
     discoverer = StringField(
         "Discoverer (or log if present in log)",
         render_kw={"size": 12},
-        validators=[DataRequired()])
+        validators=[DataRequired(), Length(min=3, max=8)])
 
     date = DateField(
         "Date",
