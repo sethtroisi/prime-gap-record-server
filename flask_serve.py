@@ -213,7 +213,6 @@ def sieve_interval(human, start, gap_size, faster):
     num = primegapverify.parse(human)
     assert num, "should be parsable: " + human
 
-
     max_prime = primegapverify.sieve_limit(math.log2(num), gap_size)
     if faster:
         max_prime //= 5
@@ -336,7 +335,7 @@ def update_all_sql(all_sql_lines, gap_size, sql_insert):
         print ("  With      ", new_line.strip())
         all_sql_lines[index] = new_line
     else:
-        print (" !INSERTING! ", new_line.strip())
+        print (" !INSERTING!", new_line.strip())
         all_sql_lines.insert(index, new_line)
 
     # Possible doesn't work if two updates to same gap
@@ -388,45 +387,6 @@ def short_start(n):
     return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
 
 
-def parse_num(num_str):
-    parsed = primegapverify.parse(num_str)
-    if parsed:
-        return parsed
-
-    if "(" in num_str or ")" in num_str:
-        return None
-    if len(num_str) > 10000:
-        return None
-
-    # Remove whitespace from string
-    num_str = re.sub(r"\s", "", num_str)
-
-    # Generally follows this form
-    match = re.search(r"(\d+)\*(\d+)#/(\d+)(#?)\-(\d+)", num_str)
-    if match:
-        if any(len(v) > 100 for v in match.groups()):
-            return REALLY_LARGE
-        m, p, d, dp, a = match.groups()
-        m, p, d, a = map(int, (m, p, d, a))
-
-        # Check if p will be > REALLY_LARGE
-        if p > 100000:
-            return REALLY_LARGE
-        if p < 50:
-            return None
-
-        d = d
-        if dp == '#':
-            d = gmpy2.primorial(d)
-
-        t = m * gmpy2.primorial(p)
-        if t % d != 0:
-            return None
-
-        return int(t // d - a)
-    return None
-
-
 def possible_add_to_queue(
         coord,
         gap_size, gap_start,
@@ -449,7 +409,7 @@ def possible_add_to_queue(
     # existing_merit_in_db, existing_start_prime
     if len(rv) == 1:
         e_merit_db, e_startprime = rv[0]
-        e_start = parse_num(e_startprime)
+        e_start = primegapverify.parse(e_startprime)
         if e_start:
             e_merit = gap_size / gmpy2.log(e_start)
             if abs(e_merit_db - e_merit) > 0.01:
@@ -461,7 +421,7 @@ def possible_add_to_queue(
         e_start = None
         e_merit = 0
 
-    start_n = parse_num(gap_start)
+    start_n = primegapverify.parse(gap_start)
     if start_n is None:
         err_msg = ("Can't parse gapstart={} (post on "
                    "MersenneForum if this is an error)").format(gap_start)
@@ -521,17 +481,18 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
-    #Primorial in the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p-a}
-    primorial_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|\d+\^\d+-\d+)"
+    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p-a}
+    number_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|\d+\^\d+-\d+|\d+)"
 
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
             continue
 
-        # TODO example
+        # <gap> <YYYY-MM-DD> <Namedate e.g. 2020-05-23> <name> <merit> <START>
         full_log_re = (r"(\d+)\s+"
-                       r"(20[012]\d-\d\d?-\d\d?)\s+([\w.]+\.?[\w.]*)\s+"
-                       r"([\d.]+)\s+") + primorial_re
+                       r"(20[012]\d-\d\d?-\d\d?)\s+"
+                       r"([\w.]+)\s+"
+                       r"([\d.]+)\s+") + number_re
         match = re.search(full_log_re, line)
         if match:
             if is_log_discoverer:
@@ -547,14 +508,14 @@ def possible_add_to_queue_log(coord, form):
             continue
 
         # <gap> <experected_merit> <START>
-        log_re = r"(\d+)\s+([\d.]+)\s+" + primorial_re
+        log_re = r"(\d+)\s+([\d.]+)\s+" + number_re
         match = re.search(log_re, line)
         if match:
             discover_date = form.date.data
             line_datas.append((int(match.group(1)), match.group(3), discoverer, discover_date))
             continue
 
-        gap_start_re = r"(\d+)\s+" + primorial_re
+        gap_start_re = r"(\d+)\s+" + number_re
         match = re.search(gap_start_re, line)
         if match:
             discover_date = form.date.data
