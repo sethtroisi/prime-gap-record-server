@@ -56,7 +56,7 @@ class WorkCoordinator():
         self.recent = multiprocessing.Manager().list()
 
         # Client uses this to avoid double adding to queue (without checking)
-        self.processed = set()
+        self.processed = {}
 
         # Records uploaded via this tool
         # list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
@@ -194,7 +194,6 @@ def gap_worker(coord):
         print ("Batch Done! @{} (count {} => {})".format(
             datetime.datetime.now().isoformat(sep=' '),
             start_count[0], end_count[0]))
-
 
 
 def sieve_interval(human, start, gap_size, faster):
@@ -398,9 +397,14 @@ def possible_add_to_queue(
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
 
-    if (gap_size, gap_start) in coord.processed:
-        return False, "Already processed"
-    coord.processed.add((gap_size, gap_start))
+    existing = coord.processed.get(gap_size)
+    if existing:
+        if existing < gap_start:
+            return False, "Existing better record submitted"
+        elif existing == gap_start:
+            return False, "Already processed"
+
+    coord.processed[gap_size] = gap_start
 
     rv = list(get_db().execute(
         "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
