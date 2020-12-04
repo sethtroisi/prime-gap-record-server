@@ -698,25 +698,64 @@ def graphs():
 
 @app.route("/secret_test")
 def secret_test_page():
-    # Write to sceret table in DB
+    status = "<br>".join([
+        secret_test_page_write_db(),
+        secret_test_page_test_one(),
+    ])
+    return status
+
+@app.route("/secret_test_write_db")
+def secret_test_page_write_db():
+    # Write to secret table in DB
     try:
-        db = get_db()
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS testing ("
-            "  five INTEGER PRIMARY KEY,"
-            "  time INTEGER)")
-        db.execute("INSERT OR IGNORE INTO testing VALUES(5, 1)")
-        last = db.execute("SELECT * FROM testing")
-        updated = int(time.time())
-        db.execute(f"UPDATE testing SET time={updated}")
-        db.commit()
+        with get_db() as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS testing ("
+                "  five INTEGER PRIMARY KEY,"
+                "  time INTEGER)")
+            db.execute("INSERT OR IGNORE INTO testing VALUES(5, 1)")
+            last = db.execute("SELECT * FROM testing")
+            updated = int(time.time())
+            db.execute(f"UPDATE testing SET time={updated}")
+            db.commit()
     except sqlite3.OperationalError as e:
         import traceback
         print ("Error on secret test page")
         traceback.print_exc()
         return str(e)
 
-    return str(updated)
+    return "Updated=" + str(updated)
+
+@app.route("/secret_test_test_records")
+def secret_test_page_test_one():
+    global global_coord
+    coord = global_coord
+
+    # Test with a couple of small records
+    output = []
+    try:
+        with get_db() as db:
+            lines = list(tuple(r) for r in db.execute(
+                "SELECT gapsize, startprime, discoverer FROM gaps "
+                "WHERE gapsize BETWEEN 100 and 5000 AND primedigits < 100"))
+            lines = sorted(random.sample(lines, 100))
+            output.append("Sampled 100 lines first: " + str(lines[0]))
+
+            for gap_size, human, who in lines:
+                start = primegapverify.parse(human)
+                if not start:
+                    output.append("Failed to parse: " + human)
+                else:
+                    success, status = test_one(coord, gap_size, start, who, human)
+                    if not success:
+                        output.append("Failed({}): {}".format(status, (gap_size, human)))
+    except Exception as e:
+        import traceback
+        print ("Error on secret test page")
+        traceback.print_exc()
+        return "Exception: " + str(e)
+
+    return "<br>".join(output)
 
 
 # Create background gap_worker
