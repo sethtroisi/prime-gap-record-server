@@ -391,40 +391,15 @@ def possible_add_to_queue(
         gap_size, gap_start,
         discoverer,
         discover_date):
+
+    # Check gapsize odd, >1200
     if gap_size % 2 == 1:
         return False, "Odd gapsize is unlikely"
     if gap_size <= 1200:
         return False, "optimal gapsize={} has already been found".format(
             gap_size)
 
-    existing = coord.processed.get(gap_size)
-    if existing:
-        if existing < gap_start:
-            return False, "Existing better record submitted"
-        elif existing == gap_start:
-            return False, "Already processed"
-
-    coord.processed[gap_size] = gap_start
-
-    rv = list(get_db().execute(
-        "SELECT merit, startprime FROM gaps WHERE gapsize = ?",
-        (gap_size,)))
-    assert len(rv) in (0, 1), [tuple(r) for r in rv]
-    # existing_merit_in_db, existing_start_prime
-    if len(rv) == 1:
-        e_merit_db, e_startprime = rv[0]
-        e_start = primegapverify.parse(e_startprime)
-        if e_start:
-            e_merit = gap_size / gmpy2.log(e_start)
-            if abs(e_merit_db - e_merit) > 0.01:
-                assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
-        else:
-            e_merit = e_merit_db
-            print(f"Unable to process startprime={e_startprime}")
-    else:
-        e_start = None
-        e_merit = 0
-
+    # Parse gap_start, check odd, size
     start_n = primegapverify.parse(gap_start)
     if start_n is None:
         err_msg = ("Can't parse gapstart={} (post on "
@@ -435,25 +410,54 @@ def possible_add_to_queue(
     if start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
 
-    if start_n == e_start:
-        return False, "Already submitted"
+    # Check if already queued (or better queued)
+    existing = coord.processed.get(gap_size)
+    if existing:
+        if existing < start_n:
+            return False, "Existing better record submitted"
+        elif existing == start_n:
+            return False, "Already processed"
+
+    coord.processed[gap_size] = start_n
+
+    # Check if DB for current record
+    with get_db() as db:
+        rv = list(db.execute("SELECT merit, startprime FROM gaps WHERE gapsize = ?", (gap_size,)))
+        assert len(rv) in (0, 1), [tuple(r) for r in rv]
+        # existing_merit_in_db, existing_start_prime
+        if len(rv) == 1:
+            e_merit_db, e_startprime = rv[0]
+            e_start = primegapverify.parse(e_startprime)
+            if e_start:
+                e_merit = gap_size / gmpy2.log(e_start)
+                if abs(e_merit_db - e_merit) > 0.01:
+                    assert False, ("Bad record merit for gap:", gap_size, e_merit_db, e_merit)
+            else:
+                e_merit = e_merit_db
+                print(f"Unable to process startprime={e_startprime}")
+        else:
+            e_start = None
+            e_merit = 0
 
     new_merit = gap_size / gmpy2.log(start_n)
-    if e_start is not None and start_n >= e_start:
-        return False, "Existing gap {} with better {} {:.3f} vs {} {:.4f}".format(
-            gap_size,
-            short_start(e_start),
-            e_merit,
-            short_start(start_n),
-            new_merit)
-
     improved_merit = new_merit - e_merit
 
-    # Pull data from form for old style line & github entry
+    if e_start is not None:
+        if start_n == e_start:
+            return False, "Already submitted"
+        elif start_n > e_start:
+            return False, "Existing gap {} with better {} {:.4f} vs {} {:.4f}".format(
+                gap_size,
+                short_start(e_start),
+                e_merit,
+                short_start(start_n),
+                new_merit)
+
+    # Old style line & github entry
     newmerit_fmt = "{:.4f}".format(new_merit)
     primedigits = len(str(start_n))
 
-    # How to choice this better?
+    # Can be changed to C?? in test_one
     # See https://primegap-list-project.github.io/drtrnicely-format-legacy/
     # C = Common, Classic
     # ? = Not first occurrence
