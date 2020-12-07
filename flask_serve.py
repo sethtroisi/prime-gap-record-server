@@ -212,7 +212,8 @@ def sieve_interval(human, start, gap_size, faster):
     num = primegapverify.parse(human)
     assert num, "should be parsable: " + human
 
-    max_prime = primegapverify.sieve_limit(math.log2(num), gap_size)
+    N_bits = float(gmpy2.log2(num))
+    max_prime = primegapverify.sieve_limit(N_bits, gap_size)
     if faster:
         max_prime //= 5
 
