@@ -52,8 +52,8 @@ var svg = d3.select("body")
   d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
     // Scale the range of the data
-    var x_vals = d3.extent(data, function(d) { return d.gapsize; });
-    var x = d3.scaleLinear().domain(d3.extent(data, d => parseInt(d.gapsize))).range([0, width]);
+    var x_vals = d3.extent(data, d => parseInt(d.gapsize));
+    var x = d3.scaleLinear().domain(x_vals).range([0, width]);
     var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
 
     var discoverer_count = {"other": 0};
@@ -178,7 +178,11 @@ var svg = d3.select("body")
 
 
     function updatePlot() {
-      x_max = Math.min(x.domain()[1], Math.max(0, document.getElementById("x_max").value));
+      x_max = Math.min(x_vals[1], Math.max(0, document.getElementById("x_max").value));
+      if (x_max == 0) {
+        x_max = x_vals[1];
+      }
+
       x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
 
       // Update X axis
