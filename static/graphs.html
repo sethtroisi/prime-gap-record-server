@@ -12,6 +12,7 @@
     </h1>
      <a href="https://primegap-list-project.github.io/">More at Prime Gap List Project</a>
      <br><br>
+     <input type="checkbox" class="include-avg" id="include_avg" checked>
      <input type="number" class="input-num" id="x_min" value=0>
      <input type="number" class="input-num" id="x_max" value=0>
      <br>
@@ -48,13 +49,66 @@ var svg = d3.select("body")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-  //Read the data
-  d3.csv("graph_merit.csv" + window.location.search, function(data) {
+//Read the data
+d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
     // Scale the range of the data
     var x_vals = d3.extent(data, d => parseInt(d.gapsize));
     var x = d3.scaleLinear().domain(x_vals).range([0, width]);
     var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
+
+    // Weighted Average
+    function add_weighted_average(group, data, stroke='#C11', alpha=0.03) {
+        var trailing_avg_data = [];
+        for (i = 0; i < data.length; i+= 5) {
+            var m = 1;
+            var t = 0;
+            for (j = i; j >= 0 && m > 0.001; j--) {
+                t += (j == 0 ? 1 : alpha) * m * data[j].merit;
+                m *= 1 - alpha;
+            }
+            trailing_avg_data.push([data[i].gapsize, t]);
+        }
+
+        var line = d3.line()
+            .x((d) => x(d[0]))
+            .y((d) => y(d[1]));
+
+        group.append('path')
+            .attr("class", "avg-path")
+            .data([trailing_avg_data])
+            .attr('d', line)
+            .attr('stroke', stroke)
+            .attr('stroke-width', '1px')
+            .attr('fill', 'none');
+    }
+
+    function updatePlot() {
+      x_max = Math.min(x_vals[1], Math.max(0, document.getElementById("x_max").value));
+      if (x_max == 0) {
+        x_max = x_vals[1];
+      }
+
+      x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
+
+      // Update X axis
+      x.domain([x_min, x_max]);
+      xAxis.transition().duration(1000).call(d3.axisBottom(x))
+
+      // Update chart
+      svg.selectAll("circle")
+         .data(data)
+         .transition().duration(1000)
+         .attr("cx", d => x(d.gapsize))
+         .attr("cy", d => y(d.merit))
+
+      // Just remove these
+      svg.selectAll(".merit-line").remove();
+      svg.selectAll(".avg-path").remove();
+      if (document.getElementById("include_avg").checked) {
+        add_weighted_average(svg, data);
+      }
+    }
 
     var discoverer_count = {"other": 0};
     data.forEach(function(d) {
@@ -176,33 +230,12 @@ var svg = d3.select("body")
     meritLine("Mersenne PGS Forumites",
               [[900, 25], [1600, 35]]);
 
-
-    function updatePlot() {
-      x_max = Math.min(x_vals[1], Math.max(0, document.getElementById("x_max").value));
-      if (x_max == 0) {
-        x_max = x_vals[1];
-      }
-
-      x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
-
-      // Update X axis
-      x.domain([x_min, x_max]);
-      xAxis.transition().duration(1000).call(d3.axisBottom(x))
-
-      // Update chart
-      svg.selectAll("circle")
-         .data(data)
-         .transition().duration(1000)
-         .attr("cx", d => x(d.gapsize))
-         .attr("cy", d => y(d.merit))
-
-      // Just remove these
-      svg.selectAll(".merit-line").remove();
-    }
+    add_weighted_average(svg, data);
 
     // Add an event listener to the button created in the html part
     d3.select("#x_min").on("change", updatePlot)
     d3.select("#x_max").on("change", updatePlot)
+    d3.select("#include_avg").on("change", updatePlot)
 });
 
 </script>
