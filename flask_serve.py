@@ -93,12 +93,12 @@ def gap_worker(coord):
         for index, item in enumerate(batch, 1):
             gap_size, start, improved, line_fmt, sql_insert = item
             human = sql_insert[-1]
+            discoverer = sql_insert[5]
 
             batch_message = "{} of {} ".format(index, len(batch))
             print("Worker running", batch_message, line_fmt)
 
             start_t = time.time()
-            discoverer = sql_insert[5]
             success, status = test_one(coord, gap_size, start, discoverer, human)
             end_t = time.time()
 
@@ -136,6 +136,8 @@ def gap_worker(coord):
         commit_msgs = []
         new_records = 0
         improved_merit = 0
+        # Handles multiple authors
+        authors = set()
         for gap_size, _, improved, line_fmt, sql_insert in verified:
 
             # Write to allgaps.sql (sorted), kinda slow
@@ -145,8 +147,9 @@ def gap_worker(coord):
 
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
-                sql_insert[0], sql_insert[7], discoverer)
+                sql_insert[0], sql_insert[7], sql_insert[5])
             commit_msgs.append(commit_msg)
+            authors.add(sql_insert[5])
 
         # Write to record file
         with open(RECORDS_FN, "a") as f:
@@ -159,12 +162,11 @@ def gap_worker(coord):
                 f.write(line)
 
         if len(commit_msgs) > 1:
-            # TODO What to do if multiple authors?
             updates = len(verified) - new_records
             header = "{}{}by {} (merit +{:.2f}) gaps {} to {}\n".format(
                 "{} updates ".format(updates) if updates else "",
                 "{} new gaps ".format(new_records) if new_records else "",
-                discoverer,
+                min(authors) if len(authors) == 1 else "various",
                 improved_merit,
                 min(item[0] for item in verified),
                 max(item[0] for item in verified))
