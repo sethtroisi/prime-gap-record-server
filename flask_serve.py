@@ -273,7 +273,8 @@ def test_one(coord, gap_size, start, discoverer, human):
             log_n, expected_time, prp_time, prp_count, merit))
 
         if discoverer in ("Jacobsen", "Rosnthal", "M.Jansen",
-                          "MrtnRaab", "RobSmith", "S.Troisi"):
+                          "MrtnRaab", "RobSmith", "S.Troisi",
+                          "DStevens"):
             # This discoverer's are trusted
             verified_type = 1
             test_fraction = 1 * 60 / expected_time
