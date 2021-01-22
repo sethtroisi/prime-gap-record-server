@@ -493,8 +493,8 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
-    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p-a}
-    number_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|\d+\^\d+-\d+|\d+)"
+    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p+-a, m*b^p+-a}
+    number_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|(\d+\s*\*\s*)?\d+\^\d+[+-]\d+|\d+)"
 
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
