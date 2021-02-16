@@ -88,11 +88,14 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
     // Sort by count (for label)
     var top_discoverers = ["other"];
+    var discover_rename = {};
     for (var disc in discoverer_count) {
       if (discoverer_count[disc] > one_percent) {
         top_discoverers.push(disc);
+        discover_rename[disc] = disc
       } else {
         discoverer_count["other"] += discoverer_count[disc];
+        discover_rename[disc] = "other";
       }
     }
 
@@ -165,22 +168,29 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
         x_max = x_vals[1];
       }
 
-      x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
+      x_min = Math.min(Math.max(0, x_max-1000), Math.max(0, document.getElementById("x_min").value));
 
       // Update X axis
       x.domain([x_min, x_max]);
       xAxis.transition().duration(1000).call(d3.axisBottom(x))
 
+      for (var key of Object.keys(discoverer_count)) {
+        discoverer_count[key] = 0;
+      }
+
       var plotted = 0;
       data.forEach(function(p, i) {
           if (x_min <= p.gapsize && p.gapsize <= x_max) {
             plotted += 1;
-            if (disabled_disc.indexOf(who_safe(p.discoverer)) >= 0) {
+
+            var name = discover_rename[p.discoverer];
+            if (disabled_disc.indexOf(who_safe(name)) >= 0) {
               context.globalAlpha = 0.1;
             }
+            discoverer_count[name]++;
             context.beginPath();
             context.arc(x(p.gapsize), y(p.merit), 1.1, 0, 2*Math.PI);
-            context.fillStyle = discoverer_color(who(p.discoverer));
+            context.fillStyle = discoverer_color(name);
             context.fill();
             context.globalAlpha = 1;
           }
@@ -195,6 +205,10 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
          .attr("cy", d => y(d.merit))
 */
 
+      if (!is_no_color) {
+        drawLegend();
+      }
+
       // Just remove these
       svg.selectAll(".merit-line").remove();
       svg.selectAll(".avg-path").remove();
@@ -203,25 +217,12 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
       }
     }
 
-
-    /*
-    // Add dots
-    svg.append('g')
-      .selectAll("dot")
-      .data(data)
-      .enter()
-      .append("circle")
-        .attr("cx", d => x(d.gapsize))
-        .attr("cy", d => y(d.merit))
-        .attr("r", 1.1)
-        .style("fill", d => discoverer_color(who(d.discoverer)))
-        .attr("class", d => who_safe(who(d.discoverer)) );
-    */
-
-    if (!is_no_color) {
+    function drawLegend() {
       // legend patch
-      var legend_patch = svg
-          .append("rect")
+      var legend_patch = svg.selectAll(".legend-patch")
+        .data([1])
+        .enter().append("rect")
+          .attr("class", "legend-patch")
           .attr("x", 30)
           .attr("y", height - 35 - 20 * discoverer_color.domain().length)
           .attr("height", 20 * (discoverer_color.domain().length + 0.5))
@@ -261,8 +262,25 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
           .attr("dy", ".35em")
           .style("text-anchor", "end")
           .style("font-weight", "bold")
+
+      svg.selectAll(".legend text")
+          .data(discoverer_color.domain())
           .text(d => d + "(" + discoverer_count[d] + ")");
     }
+
+    /*
+    // Add dots
+    svg.append('g')
+      .selectAll("dot")
+      .data(data)
+      .enter()
+      .append("circle")
+        .attr("cx", d => x(d.gapsize))
+        .attr("cy", d => y(d.merit))
+        .attr("r", 1.1)
+        .style("fill", d => discoverer_color(who(d.discoverer)))
+        .attr("class", d => who_safe(who(d.discoverer)) );
+    */
 
     // Draw some merit lines.
     // Everything starts at the origin
