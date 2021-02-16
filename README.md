@@ -8,24 +8,27 @@ Performs validation then submits record.
 pip install gmpy2 primegapverify
 
 # Setup
-git clone https://github.com/sethtroisi/prime-gap-verify.git
-cd prime-gap-verify
-make
-cd ..
-cp prime-gap-verify/large_prime .
-rm -rf prime-gap-verify
+git clone https://github.com/sethtroisi/prime-gap-record-server
+cd prime-gap-record-server
 
 git clone --branch server https://github.com/primegap-list-project/prime-gap-list.git
 cd prime-gap-list
 sqlite3 gaps.db < allgaps.sql
 sudo chmod 664 gaps.db
+cd ..
+
+python flask_serve.py
+```
+A local server should now be running at http://localhost:5090
+
+For the official server a few extra steps are needed
+```
 git remote add upstream git@github.com:primegap-list-project/prime-gap-list.git
 git remote remove origin
 git fetch
 git config --global user.name
 git config --global user.email
 # Make sure ssh works
-cd ..
 
 # Because of complicated configs
 truncate -s0 gaps.db; sqlite3 gaps.db < allgaps.sql
@@ -36,7 +39,7 @@ sudo chown -R www-data records.txt submissions.txt prime-gap-list/
 ### TODO
 
 * [ ] Write failed verifications to error.txt
-* [ ] Handle multiple records for same gap in same batch
+* [x] Handle multiple records for same gap in same batch
 * [ ] Test permissions page
   * [ ] write to records
   * [ ] verify git setup
