@@ -66,9 +66,8 @@ var svg = chartDiv
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-
-
 //Read the data
+t0 = new Date().getTime();
 d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
     // Scale the range of the data
@@ -131,7 +130,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
 
 
     // Weighted Average
-    function add_weighted_average(group, data, stroke='#C11', alpha=0.03) {
+    function add_weighted_average(group, data, stroke='#C11', alpha=0.015) {
         var trailing_avg_data = [];
         for (i = 0; i < data.length; i+= 5) {
             var m = 1;
@@ -144,8 +143,8 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
         }
 
         var line = d3.line()
-            .x((d) => x(d[0]))
-            .y((d) => y(d[1]));
+            .x((d) => x(d[0]).toFixed(1))
+            .y((d) => y(d[1]).toFixed(1));
 
         group.append('path')
             .attr("class", "avg-path")
@@ -154,6 +153,8 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
             .attr('stroke', stroke)
             .attr('stroke-width', '1px')
             .attr('fill', 'none');
+
+        console.log("average @ " + (new Date().getTime() - t0));
     }
 
     function updatePlot() {
@@ -184,7 +185,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
             context.globalAlpha = 1;
           }
       });
-      console.log("Plotted: " + plotted + " [" + x_min + ", " + x_max + "]");
+      console.log("Plotted: " + plotted + " [" + x_min + ", " + x_max + "] @ " + (new Date().getTime() - t0));
 /*
       // Update chart
       svg.selectAll("circle")
@@ -285,12 +286,10 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     meritLine("Gapcoin P87",
        [[gapcoin * 23, 23],
         [gapcoin * 33, 33]]);
-    */
 
     meritLine("Mersenne PGS Forumites",
               [[900, 25], [1600, 35]]);
-
-    add_weighted_average(svg, data);
+    */
 
     // Add an event listener to the button created in the html part
     d3.select("#x_min").on("change", updatePlot)
