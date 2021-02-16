@@ -32,6 +32,9 @@
     max-width: 100px;
   }
 
+  canvas, svg {
+    position: absolute;
+  }
 </style>
 
 <script src="https://d3js.org/d3.v4.js"></script>
@@ -43,12 +46,27 @@ var margin = {top: 10, right: 30, bottom: 30, left: 60},
     height = 500 - margin.top - margin.bottom;
 
 // append the svg object to the body of the page
-var svg = d3.select("body")
+var chartDiv = d3.select("body").append("div")
+    .style("position", "relative");
+
+var canvas = chartDiv.append("canvas")
+    .style("left", margin.left + "px")
+    .style("top", margin.top + "px")
+    .style("z-index", "1")
+    .attr("width", width)
+    .attr("height", height);
+
+var context = canvas.node().getContext("2d");
+
+var svg = chartDiv
   .append("svg")
     .attr("width", width + margin.left + margin.right)
     .attr("height", height + margin.top + margin.bottom)
+    .style("z-index", "2")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+
 
 //Read the data
 d3.csv("graph_merit.csv" + window.location.search, function(data) {
@@ -58,65 +76,14 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     var x = d3.scaleLinear().domain(x_vals).range([0, width]);
     var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
 
-    // Weighted Average
-    function add_weighted_average(group, data, stroke='#C11', alpha=0.03) {
-        var trailing_avg_data = [];
-        for (i = 0; i < data.length; i+= 5) {
-            var m = 1;
-            var t = 0;
-            for (j = i; j >= 0 && m > 0.001; j--) {
-                t += (j == 0 ? 1 : alpha) * m * data[j].merit;
-                m *= 1 - alpha;
-            }
-            trailing_avg_data.push([data[i].gapsize, t]);
-        }
-
-        var line = d3.line()
-            .x((d) => x(d[0]))
-            .y((d) => y(d[1]));
-
-        group.append('path')
-            .attr("class", "avg-path")
-            .data([trailing_avg_data])
-            .attr('d', line)
-            .attr('stroke', stroke)
-            .attr('stroke-width', '1px')
-            .attr('fill', 'none');
-    }
-
-    function updatePlot() {
-      x_max = Math.min(x_vals[1], Math.max(0, document.getElementById("x_max").value));
-      if (x_max == 0) {
-        x_max = x_vals[1];
-      }
-
-      x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
-
-      // Update X axis
-      x.domain([x_min, x_max]);
-      xAxis.transition().duration(1000).call(d3.axisBottom(x))
-
-      // Update chart
-      svg.selectAll("circle")
-         .data(data)
-         .transition().duration(1000)
-         .attr("cx", d => x(d.gapsize))
-         .attr("cy", d => y(d.merit))
-
-      // Just remove these
-      svg.selectAll(".merit-line").remove();
-      svg.selectAll(".avg-path").remove();
-      if (document.getElementById("include_avg").checked) {
-        add_weighted_average(svg, data);
-      }
-    }
-
     var discoverer_count = {"other": 0};
     data.forEach(function(d) {
       disc = d.discoverer;
       if (!discoverer_count[disc]) discoverer_count[disc] = 0;
       discoverer_count[disc]++;
     });
+
+    var disabled_disc = [];
 
     var one_percent = data.length / 100;
 
@@ -163,6 +130,80 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     }
 
 
+    // Weighted Average
+    function add_weighted_average(group, data, stroke='#C11', alpha=0.03) {
+        var trailing_avg_data = [];
+        for (i = 0; i < data.length; i+= 5) {
+            var m = 1;
+            var t = 0;
+            for (j = i; j >= 0 && m > 0.001; j--) {
+                t += (j == 0 ? 1 : alpha) * m * data[j].merit;
+                m *= 1 - alpha;
+            }
+            trailing_avg_data.push([data[i].gapsize, t]);
+        }
+
+        var line = d3.line()
+            .x((d) => x(d[0]))
+            .y((d) => y(d[1]));
+
+        group.append('path')
+            .attr("class", "avg-path")
+            .data([trailing_avg_data])
+            .attr('d', line)
+            .attr('stroke', stroke)
+            .attr('stroke-width', '1px')
+            .attr('fill', 'none');
+    }
+
+    function updatePlot() {
+      context.clearRect(0, 0, width, height);
+
+      x_max = Math.min(x_vals[1], Math.max(0, document.getElementById("x_max").value));
+      if (x_max == 0) {
+        x_max = x_vals[1];
+      }
+
+      x_min = Math.min(x_max-1000, Math.max(0, document.getElementById("x_min").value));
+
+      // Update X axis
+      x.domain([x_min, x_max]);
+      xAxis.transition().duration(1000).call(d3.axisBottom(x))
+
+      var plotted = 0;
+      data.forEach(function(p, i) {
+          if (x_min <= p.gapsize && p.gapsize <= x_max) {
+            plotted += 1;
+            if (disabled_disc.indexOf(who_safe(p.discoverer)) >= 0) {
+              context.globalAlpha = 0.1;
+            }
+            context.beginPath();
+            context.arc(x(p.gapsize), y(p.merit), 1.1, 0, 2*Math.PI);
+            context.fillStyle = discoverer_color(who(p.discoverer));
+            context.fill();
+            context.globalAlpha = 1;
+          }
+      });
+      console.log("Plotted: " + plotted + " [" + x_min + ", " + x_max + "]");
+/*
+      // Update chart
+      svg.selectAll("circle")
+         .data(data)
+         .transition().duration(1000)
+         .attr("cx", d => x(d.gapsize))
+         .attr("cy", d => y(d.merit))
+*/
+
+      // Just remove these
+      svg.selectAll(".merit-line").remove();
+      svg.selectAll(".avg-path").remove();
+      if (document.getElementById("include_avg").checked) {
+        add_weighted_average(svg, data);
+      }
+    }
+
+
+    /*
     // Add dots
     svg.append('g')
       .selectAll("dot")
@@ -174,8 +215,19 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
         .attr("r", 1.1)
         .style("fill", d => discoverer_color(who(d.discoverer)))
         .attr("class", d => who_safe(who(d.discoverer)) );
+    */
 
     if (!is_no_color) {
+      // legend patch
+      var legend_patch = svg
+          .append("rect")
+          .attr("x", 30)
+          .attr("y", height - 35 - 20 * discoverer_color.domain().length)
+          .attr("height", 20 * (discoverer_color.domain().length + 0.5))
+          .attr("width", 180)
+          .attr("rx", 10)
+          .style("fill", "#f0f0f0");
+
       // draw legend
       var legend = svg.selectAll(".legend")
           .data(discoverer_color.domain())
@@ -184,23 +236,30 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
             .attr("transform", function(d, i) { return "translate(0," + (height - 50 - i * 20) + ")"; })
             .on("click", function(d){
               var turn_on = (this.active == true)
-              d3.selectAll("." + who_safe(d)).style("opacity", turn_on ? "1" : "0.1");
+              d3.selectAll("." + who_safe(d)).style("opacity", turn_on ? "1" : "0.4");
               this.active = !turn_on;
+              if (turn_on) {
+                disabled_disc.splice(disabled_disc.indexOf(who_safe(d)), 1);
+              } else {
+                disabled_disc.push(who_safe(d));
+              }
+              updatePlot();
             });
 
       // draw legend colored rectangles
       legend.append("rect")
-          .attr("x", width - 18)
+          .attr("x", 180)
           .attr("width", 18)
           .attr("height", 18)
           .style("fill", discoverer_color);
 
       // draw legend text
       legend.append("text")
-          .attr("x", width - 24)
+          .attr("x", 180 - 12)
           .attr("y", 9)
           .attr("dy", ".35em")
           .style("text-anchor", "end")
+          .style("font-weight", "bold")
           .text(d => d + "(" + discoverer_count[d] + ")");
     }
 
@@ -237,6 +296,8 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     d3.select("#x_min").on("change", updatePlot)
     d3.select("#x_max").on("change", updatePlot)
     d3.select("#include_avg").on("change", updatePlot)
+
+    updatePlot();
 });
 
 </script>
