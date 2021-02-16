@@ -7,6 +7,7 @@ import multiprocessing
 import subprocess
 import sqlite3
 import time
+import gzip
 
 import gmpy2
 from flask import Flask, Response, g, render_template, request
@@ -691,10 +692,11 @@ def graph_merit_csv():
     merits = get_db().execute(
         "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
         (min(160000, max_gap),))
+    data = "gapsize,merit,discoverer\n" + "\n".join(",".join(map(str, row)) for row in merits)
     return Response(
-        "gapsize,merit,discoverer\n" +
-            "\n".join(",".join(map(str, row)) for row in merits),
-        mimetype="text/plain"
+        gzip.compress(data.encode()),
+        mimetype="text/plain",
+        headers = {"Content-Encoding": "gzip"}
     )
 
 
