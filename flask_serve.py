@@ -162,6 +162,9 @@ def gap_worker(coord):
             for line in all_sql_lines:
                 f.write(line)
 
+        # Sort commit_msgs Improved.... New...
+        commit_msgs.sort()
+
         if len(commit_msgs) > 1:
             updates = len(verified) - new_records
             header = "{}{}by {} (merit +{:.2f}) gaps {} to {}\n".format(
