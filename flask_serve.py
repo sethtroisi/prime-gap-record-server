@@ -280,22 +280,24 @@ def test_one(coord, gap_size, start, discoverer, human):
                           "MrtnRaab", "RobSmith", "S.Troisi",
                           "DStevens"):
             # This discoverer's are trusted
-            verified_type = 1
             test_fraction = 1 * 60 / expected_time
         else:
             # Change to C??
-            verified_type = 2
             test_fraction = 10 * 60 / expected_time
 
-    if test_fraction > 0.8:
+    # Silly to spend time verifying 70% then not counting as C?P
+    if test_fraction > 0.7:
         test_fraction = 1.0
 
-    composites = 2 # for endpoints
+    verified_type = 1
+    unknowns = 2 # for endpoints
     for k in range(2, gap_size, 2):
         if composite[k]: continue
-        composites += 1
+        unknowns += 1
 
         if test_fraction > 0 and random.random() > test_fraction:
+            # Some skips happened
+            verified_type = 2
             continue
 
         if primegapverify.is_prime_large(start + k):
@@ -303,7 +305,7 @@ def test_one(coord, gap_size, start, discoverer, human):
 
         tests += 1
         coord.current[0] = "Testing {}, {}/{} done, {}/{} PRPs performed".format(
-            gap_size, k+1, gap_size, tests, composites)
+            gap_size, k+1, gap_size, tests, unknowns)
 
     return verified_type, "Verified"
 
