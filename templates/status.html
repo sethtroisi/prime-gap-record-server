@@ -20,7 +20,7 @@
         margin-left: 50px;
       }
 
-      h1 {
+      h2 {
         margin-bottom: 0;
       }
 
@@ -51,11 +51,12 @@
 </script>
 
 <body id="body">
-    <h1>
+    <h2>
       Prime Gap Status
       <a href="https://github.com/primegap-list-project/prime-gap-list/commits/server">(prime-gap-list)</a>
-    </h1>
-    <div>
+    </h2>
+    <a href="/">Main page</a>
+    <span>
       Worker Status:
       {% if running %}
         <span style="color:green">Alive</span>
@@ -66,7 +67,7 @@
           please)
         </span>
       {% endif %}
-    </div>
+    </span>
 
     <div>
       <span class="half-col">
