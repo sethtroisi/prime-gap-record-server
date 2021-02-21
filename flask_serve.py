@@ -149,7 +149,7 @@ def gap_worker(coord):
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
                 sql_insert[0], sql_insert[7], sql_insert[5])
-            commit_msgs.append(commit_msg)
+            commit_msgs.append((sql_insert[7], commit_msg))
             authors.add(sql_insert[5])
 
         # Write to record file
@@ -162,8 +162,8 @@ def gap_worker(coord):
             for line in all_sql_lines:
                 f.write(line)
 
-        # Sort commit_msgs Improved.... New...
-        commit_msgs.sort()
+        # Sort commit_msgs by gap_size
+        commit_msgs = [commit for _, commit in sorted(commit_msgs)]
 
         if len(commit_msgs) > 1:
             updates = len(verified) - new_records
