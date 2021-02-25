@@ -149,7 +149,7 @@ def gap_worker(coord):
             commit_msg = "{} record {} merit={} found by {}".format(
                 "Improved" if replace else "New",
                 sql_insert[0], sql_insert[7], sql_insert[5])
-            commit_msgs.append((sql_insert[7], commit_msg))
+            commit_msgs.append((sql_insert[0], commit_msg))
             authors.add(sql_insert[5])
 
         # Write to record file
