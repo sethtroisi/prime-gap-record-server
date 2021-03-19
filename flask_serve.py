@@ -213,7 +213,7 @@ def sieve_interval(human, start, gap_size, faster):
         assert p in range(30, 80000), p
         assert m in range(2 ** 62), m
         assert d in range(2 ** 62), d
-        assert -10 ** 7 <= a < 0, a
+        assert abs(a) <= 10 ** 7, a
 
     num = primegapverify.parse(human)
     assert num, "should be parsable: " + human
@@ -499,8 +499,8 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
-    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, b^p+-a, m*b^p+-a}
-    number_re = r"((\d+\s*\*\s*)?\d+#\s*/\s*\d+#?\s*\-\s*\d+|(\d+\s*\*\s*)?\d+\^\d+[+-]\d+|\d+)"
+    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, m*P#+-a, b^p+-a, m*b^p+-a}
+    number_re = r"((\d+\s*\*\s*)?\d+#\s*(\/\s*\d+#?\s*)?[+-]\s*\d+|(\d+\s*\*\s*)?\d+\^\d+[+-]\d+|\d+)"
 
     for line in log_data.split("\n"):
         if len(line.strip()) == 0:
@@ -696,7 +696,7 @@ def graph_merit_csv():
 
     merits = get_db().execute(
         "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
-        (min(160000, max_gap),))
+        (min(200000, max_gap),))
     data = "gapsize,merit,discoverer\n" + "\n".join(",".join(map(str, row)) for row in merits)
     return Response(
         gzip.compress(data.encode()),

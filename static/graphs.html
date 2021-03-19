@@ -109,7 +109,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     if (is_no_color) {
       discoverer_color = name => "#006699";
     } else {
-      discoverer_color = d3.scaleOrdinal(d3.schemeCategory20).domain(top_discoverers);
+      discoverer_color = d3.scaleOrdinal(d3.schemeCategory10).domain(top_discoverers);
     }
 
     // Add the Y Axis
