@@ -24,8 +24,8 @@
   }
 
   .grid line {
-    stroke: #7a5;
-    stroke-width: 1.5px;
+    stroke: #09a;
+    stroke-width: 1px;
   }
   .grid .domain {
     display: none;
@@ -38,6 +38,11 @@
   canvas, svg {
     position: absolute;
   }
+
+  svg text {
+    font-size: 14px
+  }
+
 </style>
 
 <script src="https://d3js.org/d3.v4.js"></script>
@@ -76,7 +81,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
     // Scale the range of the data
     var x_vals = d3.extent(data, d => parseInt(d.gapsize));
     var x = d3.scaleLinear().domain(x_vals).range([0, width]);
-    var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 0]);
+    var y = d3.scaleLinear().domain([0, d3.max(data, d => parseFloat(d.merit))]).range([height, 3]);
 
     var discoverer_count = {"other": 0};
     data.forEach(function(d) {
@@ -227,7 +232,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
         .enter().append("rect")
           .attr("class", "legend-patch")
           .attr("x", 30)
-          .attr("y", height - 35 - 20 * discoverer_color.domain().length)
+          .attr("y", height - 20 - 20 * discoverer_color.domain().length)
           .attr("height", 20 * (discoverer_color.domain().length + 0.5))
           .attr("width", 180)
           .attr("rx", 10)
@@ -238,7 +243,7 @@ d3.csv("graph_merit.csv" + window.location.search, function(data) {
           .data(discoverer_color.domain())
           .enter().append("g")
             .attr("class", d => "legend " + who_safe(d))
-            .attr("transform", function(d, i) { return "translate(0," + (height - 50 - i * 20) + ")"; })
+            .attr("transform", function(d, i) { return "translate(0," + (height - 35 - i * 20) + ")"; })
             .on("click", function(d){
               var turn_on = (this.active == true)
               d3.selectAll("." + who_safe(d)).style("opacity", turn_on ? "1" : "0.4");
