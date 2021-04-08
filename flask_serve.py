@@ -210,8 +210,8 @@ def sieve_interval(human, start, gap_size, faster):
     parsed = primegapverify.parse_primorial_standard_form(human)
     if parsed:
         m, p, d, a = parsed
-        assert p in range(30, 80000), p
-        assert m in range(2 ** 62), m
+        assert p in range(20, 80000), p
+        assert m > 0, m
         assert d in range(2 ** 62), d
         assert abs(a) <= 10 ** 7, a
 
