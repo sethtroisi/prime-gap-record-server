@@ -76,7 +76,12 @@ var svg = chartDiv
 
 //Read the data
 t0 = new Date().getTime();
-d3.csv("graph_merit.csv" + window.location.search, function(data) {
+
+// If doing per year
+var csv_file = window.location.search.match(/by_year/) ?
+    "graph_merit_year.csv" : "graph_merit_discoverer.csv";
+
+d3.csv(csv_file + window.location.search, function(data) {
 
     // Scale the range of the data
     var x_vals = d3.extent(data, d => parseInt(d.gapsize));

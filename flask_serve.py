@@ -687,7 +687,8 @@ def merits():
 
 
 @app.route("/graph_merit.csv")
-def graph_merit_csv():
+@app.route("/graph_merit_discoverer.csv")
+def graph_merit_csv_discoverer():
     max_gap = request.args.get("max")
     if max_gap and max_gap.isdigit():
         max_gap = int(max_gap)
@@ -696,6 +697,25 @@ def graph_merit_csv():
 
     merits = get_db().execute(
         "SELECT gapsize, merit, discoverer FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
+        (min(200000, max_gap),))
+    data = "gapsize,merit,discoverer\n" + "\n".join(",".join(map(str, row)) for row in merits)
+    return Response(
+        gzip.compress(data.encode()),
+        mimetype="text/plain",
+        headers = {"Content-Encoding": "gzip"}
+    )
+
+
+@app.route("/graph_merit_year.csv")
+def graph_merit_csv_year():
+    max_gap = request.args.get("max")
+    if max_gap and max_gap.isdigit():
+        max_gap = int(max_gap)
+    else:
+        max_gap = 10000
+
+    merits = get_db().execute(
+        "SELECT gapsize, merit, 'year ' || year FROM gaps WHERE gapsize < ? ORDER BY gapsize ASC",
         (min(200000, max_gap),))
     data = "gapsize,merit,discoverer\n" + "\n".join(",".join(map(str, row)) for row in merits)
     return Response(
