@@ -11,7 +11,7 @@ pip install gmpy2 primegapverify
 git clone https://github.com/sethtroisi/prime-gap-record-server
 cd prime-gap-record-server
 
-git clone --branch server https://github.com/primegap-list-project/prime-gap-list.git
+git clone https://github.com/primegap-list-project/prime-gap-list.git
 cd prime-gap-list
 sqlite3 gaps.db < allgaps.sql
 sudo chmod 664 gaps.db
