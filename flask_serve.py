@@ -362,7 +362,7 @@ def git_commit_and_push(commit_msg):
         # TODO verify we're on branch "server"
 
         subprocess.check_output(["git", "commit", "-am", commit_msg])
-        subprocess.check_output(["git", "push", "upstream", "server:server"])
+        subprocess.check_output(["git", "push", "upstream"])
         print()
     except Exception as e:
         print("Error!", e)
