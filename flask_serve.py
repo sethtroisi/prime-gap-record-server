@@ -38,6 +38,15 @@ assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 80 * 10 ** 6
 
+# As a favor to Michael
+MAX_DIGITS = 300000
+
+TRUSTED_DISCOVERER = (
+    "Jacobsen", "Rosnthal", "M.Jansen",
+    "MrtnRaab", "RobSmith", "S.Troisi",
+    "DStevens"
+)
+
 # Globals for exchanging queue info with background thread
 class WorkCoordinator():
     def __init__(self):
@@ -231,6 +240,8 @@ def sieve_interval(human, start, gap_size, faster):
 
 
 def test_one(coord, gap_size, start, discoverer, human):
+    assert start % 2 == 1
+
     tests = 0
     coord.current[0] = "Testing {}".format(gap_size)
 
@@ -242,9 +253,10 @@ def test_one(coord, gap_size, start, discoverer, human):
         return False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
-    verified_type = 1
-
-    assert start % 2 == 1
+    if start > REALLY_LARGE:
+        assert discoverer in TRUSTED_DISCOVERER, discoverer
+        # Not verified
+        return 2, "Large Gap! Only endpoints verified"
 
     tests += 2
     coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
@@ -276,9 +288,7 @@ def test_one(coord, gap_size, start, discoverer, human):
                "merit: {:.1f}".format(
             log_n, expected_time, prp_time, prp_count, merit))
 
-        if discoverer in ("Jacobsen", "Rosnthal", "M.Jansen",
-                          "MrtnRaab", "RobSmith", "S.Troisi",
-                          "DStevens"):
+        if discoverer in TRUSTED_DISCOVERER:
             # This discoverer's are trusted
             test_fraction = 1 * 60 / expected_time
         else:
@@ -415,10 +425,13 @@ def possible_add_to_queue(
         err_msg = ("Can't parse gapstart={} (post on "
                    "MersenneForum if this is an error)").format(gap_start)
         return False, err_msg
-    if start_n >= REALLY_LARGE:
-        return False, "gapstart={} is to large at this time".format(gap_start)
-    if start_n % 2 == 0:
+    elif start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
+
+    if start_n >= REALLY_LARGE:
+        digits = start_n.bit_length() * math.log10(2)
+        if discoverer not in TRUSTED_DISCOVERER or digits > MAX_DIGITS:
+            return False, "gapstart={} is to large at this time".format(gap_start)
 
     # Check if already queued (or better queued)
     existing = coord.processed.get(gap_size)
