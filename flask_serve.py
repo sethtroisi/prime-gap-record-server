@@ -44,7 +44,7 @@ MAX_DIGITS = 300000
 TRUSTED_DISCOVERER = (
     "Jacobsen", "Rosnthal", "M.Jansen",
     "MrtnRaab", "RobSmith", "S.Troisi",
-    "DStevens"
+    "DStevens", "MJandJKA", "MJPC&JKA",
 )
 
 # Globals for exchanging queue info with background thread
@@ -246,10 +246,10 @@ def test_one(coord, gap_size, start, discoverer, human):
     coord.current[0] = "Testing {}".format(gap_size)
 
     prime_test_time = time.time()
-    if not primegapverify.is_prime_large(start):
+    if not primegapverify.is_prime_large(start, human):
         return False, "start not prime"
 
-    if not primegapverify.is_prime_large(start + gap_size):
+    if not primegapverify.is_prime_large(start + gap_size, f"{human} + {gap_size}"):
         return False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
@@ -310,7 +310,7 @@ def test_one(coord, gap_size, start, discoverer, human):
             verified_type = 2
             continue
 
-        if primegapverify.is_prime_large(start + k):
+        if primegapverify.is_prime_large(start + k, f"{human} + {k}"):
             return False, "start + {} is prime".format(k)
 
         tests += 1
