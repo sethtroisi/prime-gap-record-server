@@ -341,11 +341,12 @@ def update_all_sql(all_sql_lines, gap_size, sql_insert):
             gap = int(match.group(1))
             if gap >= gap_size:
                 break
+    else:
+        assert False, ("LARGE INDEX", index, new_line)
 
     # Format is wrong
     assert 100 < index, ("SMALL INDEX", index, new_line)
-    assert index+10 < len(all_sql_lines), ("LARGE INDEX", index, new_line)
-    assert LINE_PREFIX in all_sql_lines[index+1], ("LARGE INDEX", index, new_line)
+    assert LINE_PREFIX in all_sql_lines[index], ("LARGE INDEX", index, new_line)
 
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(gap_size)
     replace = start_insert_line in all_sql_lines[index]
