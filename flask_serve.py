@@ -342,11 +342,12 @@ def update_all_sql(all_sql_lines, gap_size, sql_insert):
             if gap >= gap_size:
                 break
     else:
-        assert False, ("LARGE INDEX", index, new_line)
+        # This is the largest gap ever or something went wrong
+        assert gap > 6e6, ("LARGE INDEX", index, new_line)
 
     # Format is wrong
     assert 100 < index, ("SMALL INDEX", index, new_line)
-    assert LINE_PREFIX in all_sql_lines[index], ("LARGE INDEX", index, new_line)
+    assert gap > 6e6 or LINE_PREFIX in all_sql_lines[index], ("LARGE INDEX", index, new_line)
 
     start_insert_line = SQL_INSERT_PREFIX + "(" + str(gap_size)
     replace = start_insert_line in all_sql_lines[index]
