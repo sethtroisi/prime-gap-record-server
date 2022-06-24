@@ -110,26 +110,25 @@ def gap_worker(coord):
             print("Worker running", batch_message, line_fmt)
 
             start_t = time.time()
-            success, status = test_one(coord, gap_size, start, discoverer, human)
+            success, internals_verified, status = test_one(coord, gap_size, start, discoverer, human)
             end_t = time.time()
 
             coord.current[0] = "Postprocessing {}{}".format(
                 batch_message if len(batch) > 1 else "", gap_size)
 
             if success:
-                if success == 2:
+                if not internals_verified:
                     print("Changing to C??")
-                    assert "C?P" in line_fmt
-                    line_fmt = line_fmt.replace("C?P", "C??")
-                    assert sql_insert[2:5] == ("C", "?", "P"), sql_insert
+                    assert "C?D" in line_fmt
+                    line_fmt = line_fmt.replace("C?D", "C?d")
+                    assert sql_insert[2:5] == ("C", "?", "d"), sql_insert
                     sql_insert = sql_insert[:4] + ("?",) + sql_insert[5:]
                     item = (gap_size, start, improved, line_fmt, sql_insert)
 
                 status = "Verified! ({:.1f}s)".format(end_t - start_t)
                 verified.append(item)
-                coord.recent.append((gap_size, human, status))
-            else:
-                coord.recent.append((gap_size, human, status))
+
+            coord.recent.append((gap_size, human, status))
 
             with coord.client_size.get_lock():
                 coord.client_size.value -= 1
@@ -241,6 +240,7 @@ def sieve_interval(human, start, gap_size, faster):
 
 
 def test_one(coord, gap_size, start, discoverer, human):
+    """Returns Verified, Internals All Verified, Message"""
     assert start % 2 == 1
 
     tests = 0
@@ -248,16 +248,16 @@ def test_one(coord, gap_size, start, discoverer, human):
 
     prime_test_time = time.time()
     if not primegapverify.is_prime_large(start, human):
-        return False, "start not prime"
+        return False, False, "start not prime"
 
     if not primegapverify.is_prime_large(start + gap_size, f"{human} + {gap_size}"):
-        return False, "end not prime"
+        return False, False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
     if start > REALLY_LARGE:
         assert discoverer in TRUSTED_DISCOVERER, discoverer
         # Not verified
-        return 2, "Large Gap! Only endpoints verified"
+        return True, False, "Large Gap! Only endpoints verified"
 
     tests += 2
     coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
@@ -300,7 +300,7 @@ def test_one(coord, gap_size, start, discoverer, human):
     if test_fraction > 0.7:
         test_fraction = 1.0
 
-    verified_type = 1
+    internals_verified = True
     unknowns = 2 # for endpoints
     for k in range(2, gap_size, 2):
         if composite[k]: continue
@@ -308,17 +308,17 @@ def test_one(coord, gap_size, start, discoverer, human):
 
         if test_fraction > 0 and random.random() > test_fraction:
             # Some skips happened
-            verified_type = 2
+            internals_verified = False
             continue
 
         if primegapverify.is_prime_large(start + k, f"{human} + {k}"):
-            return False, "start + {} is prime".format(k)
+            return False, False, "start + {} is prime".format(k)
 
         tests += 1
         coord.current[0] = "Testing {}, {}/{} done, {}/{} PRPs performed".format(
             gap_size, k+1, gap_size, tests, unknowns)
 
-    return verified_type, "Verified"
+    return True, internals_verified, "Verified"
 
 
 def update_all_sql(all_sql_lines, gap_size, sql_insert):
@@ -487,8 +487,8 @@ def possible_add_to_queue(
     # See https://primegap-list-project.github.io/drtrnicely-format-legacy/
     # C = Common, Classic
     # ? = Not first occurrence
-    # P = probabilistic primes (at endpoints)
-    ccc_type = "C?P"
+    # D = Bounds & Internals double checked
+    ccc_type = "C?D"
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
         gap_size, ccc_type, newmerit_fmt, discoverer,
@@ -797,9 +797,11 @@ def secret_test_page_test_one():
                 if not start:
                     output.append("Failed to parse: " + human)
                 else:
-                    success, status = test_one(coord, gap_size, start, who, human)
+                    success, internals, status = test_one(coord, gap_size, start, who, human)
                     if not success:
                         output.append("Failed({}): {}".format(status, (gap_size, human)))
+                    else:
+                        output.append("Successfully tested({}): {}".format((gap_size, human), status))
     except Exception as e:
         import traceback
         print ("Error on secret test page")
