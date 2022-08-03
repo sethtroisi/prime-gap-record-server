@@ -118,10 +118,10 @@ def gap_worker(coord):
 
             if success:
                 if not internals_verified:
-                    print("Changing to C??")
+                    print("Changing C?D to C?d")
                     assert "C?D" in line_fmt
                     line_fmt = line_fmt.replace("C?D", "C?d")
-                    assert sql_insert[2:5] == ("C", "?", "d"), sql_insert
+                    assert sql_insert[2:5] in (("C", "?", "d"), ("C", "?", "D")), sql_insert
                     sql_insert = sql_insert[:4] + ("?",) + sql_insert[5:]
                     item = (gap_size, start, improved, line_fmt, sql_insert)
 
