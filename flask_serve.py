@@ -750,6 +750,7 @@ def graphs():
 @app.route("/secret_test")
 def secret_test_page():
     status = "<br>".join([
+        f"{primegapverify.check_pfgw_available() = }",
         secret_test_page_write_db(),
         secret_test_page_test_one(),
     ])
