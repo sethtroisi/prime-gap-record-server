@@ -45,7 +45,7 @@ TRUSTED_DISCOVERER = (
     "Jacobsen", "Rosnthal", "M.Jansen",
     "MrtnRaab", "RobSmith", "S.Troisi",
     "DStevens", "MJandJKA", "MJPC&JKA",
-    "RSMJ&JKA",
+    "RSMJ&JKA", "AndreasH",
 )
 
 # Globals for exchanging queue info with background thread
