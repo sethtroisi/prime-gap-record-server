@@ -38,8 +38,7 @@ assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 80 * 10 ** 6
 
-# As a favor to Michael
-MAX_DIGITS = 300000
+MAX_DIGITS = 400000
 
 TRUSTED_DISCOVERER = (
     "Jacobsen", "Rosnthal", "M.Jansen",
@@ -47,6 +46,15 @@ TRUSTED_DISCOVERER = (
     "DStevens", "MJandJKA", "MJPC&JKA",
     "RSMJ&JKA", "AndreasH",
 )
+
+def num_digits(n):
+    # Exact or 1 to large
+    primedigits = gmpy2.num_digits(n)
+    if n < 10 ** (primedigits - 1):
+        primedigits -= 1
+    assert 10 ** (primedigits - 1) <= n < 10 ** primedigits
+    return primedigits
+
 
 # Globals for exchanging queue info with background thread
 class WorkCoordinator():
@@ -290,10 +298,9 @@ def test_one(coord, gap_size, start, discoverer, human):
             log_n, expected_time, prp_time, prp_count, merit))
 
         if discoverer in TRUSTED_DISCOVERER:
-            # This discoverer's are trusted
+            # These discoverer are trusted and I can test less
             test_fraction = 1 * 60 / expected_time
         else:
-            # Change to C??
             test_fraction = 10 * 60 / expected_time
 
     # Silly to spend time verifying 70% then not counting as C?P
@@ -322,7 +329,7 @@ def test_one(coord, gap_size, start, discoverer, human):
 
 
 def update_all_sql(all_sql_lines, gap_size, sql_insert):
-    assert 110 < len(all_sql_lines) < 110000, len(all_sql_lines)
+    assert 110 < len(all_sql_lines) < 150000, len(all_sql_lines)
 
     # HACK: want merit to be like 15.230 not 15.23 so used {:.3f} not round
     # Downside is str(sql_insert) changes that to '15.230' so convert back here.
@@ -403,10 +410,12 @@ def close_connection(exception):
 
 
 def short_start(n):
-    str_n = str(n)
-    if len(str_n) < 20:
-        return str_n
-    return "{}...{}<{}>".format(str_n[:3], str_n[-3:], len(str_n))
+    length = num_digits(n)
+    if length < 20:
+        return str(n)
+    head = str(n // (10 ** (length - 3)))
+    tail = str(n % 1000)
+    return "{}...{}<{}>".format(head, tail, length)
 
 
 def possible_add_to_queue(
@@ -481,7 +490,7 @@ def possible_add_to_queue(
 
     # Old style line & github entry
     newmerit_fmt = "{:.4f}".format(new_merit)
-    primedigits = len(str(start_n))
+    primedigits = num_digits(start_n)
 
     # Can be changed to C?? in test_one
     # See https://primegap-list-project.github.io/drtrnicely-format-legacy/
