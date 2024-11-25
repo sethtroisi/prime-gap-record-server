@@ -78,7 +78,7 @@ class WorkCoordinator():
         self.processed = {}
 
         # Records uploaded via this tool
-        # list of traditional line format (gapsize,C?P,discovere,date,primedigit,start)
+        # list of traditional line format (gapsize,C?D,discovere,date,primedigit,start)
         new_records = []
         if os.path.isfile(RECORDS_FN):
             with open(RECORDS_FN, "r") as f:
@@ -130,7 +130,7 @@ def gap_worker(coord):
                     assert "C?D" in line_fmt
                     line_fmt = line_fmt.replace("C?D", "C?d")
                     assert sql_insert[2:5] in (("C", "?", "d"), ("C", "?", "D")), sql_insert
-                    sql_insert = sql_insert[:4] + ("?",) + sql_insert[5:]
+                    sql_insert = sql_insert[:4] + ("d",) + sql_insert[5:]
                     item = (gap_size, start, improved, line_fmt, sql_insert)
 
                 status = "Verified! ({:.1f}s)".format(end_t - start_t)
@@ -303,7 +303,7 @@ def test_one(coord, gap_size, start, discoverer, human):
         else:
             test_fraction = 10 * 60 / expected_time
 
-    # Silly to spend time verifying 70% then not counting as C?P
+    # Silly to spend time verifying 70% then not counting as C?D
     if test_fraction > 0.7:
         test_fraction = 1.0
 
@@ -492,11 +492,11 @@ def possible_add_to_queue(
     newmerit_fmt = "{:.4f}".format(new_merit)
     primedigits = num_digits(start_n)
 
-    # Can be changed to C?? in test_one
-    # See https://primegap-list-project.github.io/drtrnicely-format-legacy/
+    # final D vs d is determined by the `internals_verified` return of test_one
+    # See https://primegap-list-project.github.io/project/2022/06/24/classification-format/
     # C = Common, Classic
     # ? = Not first occurrence
-    # D = Bounds & Internals double checked
+    # D = Bounds & Internals double checked, d = only end points verified
     ccc_type = "C?D"
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
