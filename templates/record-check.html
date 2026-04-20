@@ -1,96 +1,187 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
     <title>Prime Gap Records</title>
     <style>
-      #body select,
-      #body input {
-        margin: 10px 10px 0px 0px;
-      }
+        :root {
+            --primary-color: #333;
+            --accent-color: #3ad;
+            --bg-color: #eee;
+            --card-bg: #fff;
+            --error-red: #e33;
+        }
 
-      .field-span:last-child {
-        display: block;
-      }
+        body {
+            background-color: var(--bg-color);
+            color: var(--primary-color);;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
 
-      ul.errors {
-        padding: 0;
-        color: red;
-      }
+        .card {
+            background: var(--card-bg);
+            width: 80%;
+            min-width: 500px;
+            max-width: 1200px;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
 
-      h2 {
-        margin: 0
-      }
+        h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
 
-      #logdata {
-        width: 630px;
-      }
+        nav {
+            margin-bottom: 25px;
+            text-align: center;
+        }
 
-      .scroll-area, #results, #queue {
-        max-height: 330px;
-        width: 630px;
-        overflow-y: auto;
-        overflow-x: auto;
-      }
+        nav a {
+            text-decoration: none;
+            color: var(--accent-color);
+            margin: 0 10px;
+            font-weight: 600;
+        }
 
-      .half-col {
-        display: inline-block;
-        vertical-align: top;
-        margin-right: 50px;
-      }
+        nav a:hover { text-decoration: underline; }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .field-span input,
+        .field-span select,
+        .field-span textarea {
+            width: 100%;
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+
+        #logdata {
+            font-family: monospace;
+            width: 100%;
+            min-height: 120px;
+        }
+
+        button, input[type="submit"] {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: transform 0.1s;
+        }
+
+        ul.errors {
+            padding: 0;
+            list-style: none;
+            color: var(--error-red);
+            font-size: 0.9rem;
+            margin: 5px 0 0 0;
+        }
+
+        .results-container {
+            display: grid;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .scroll-area, #results, #queue {
+            font-family: monospace;
+            background: var(--card-bg);
+            border: 1px solid var(--bg-color);
+            padding: 16px;
+            border-radius: 8px;
+            max-height: 370px;
+            overflow-y: auto;
+        }
+
+        hr {
+          border: 0; border-top: 2px solid var(--bg-color);
+          margin: 30px 0;
+        }
     </style>
 </head>
 
 {% macro render_field(field) -%}
-    <span class="field-span">
-      {{ field(placeholder=field.description or field.name) }}
-      {% if field.errors %}
-        <ul class="errors">
-        {% for error in field.errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    </span>
+    <div class="field-span">
+        {{ field(placeholder=field.description or field.name) }}
+        {% if field.errors %}
+            <ul class="errors">
+            {% for error in field.errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
 {% endmacro %}
 
-
 <body id="body">
-    <h2>Prime Gap Records</h2>
-    <a href={{ url_for('status') }}>status</a>
-    <a href="/graphs?max=10000">graph</a>
-    <a href="https://github.com/primegap-list-project/prime-gap-list/commits">(prime-gap-list)</a>
+    <div class="card">
+        <header style="text-align: center;">
+            <h1>Prime Gap Records</h1>
+            <nav>
+                <a href="{{ url_for('status') }}">Status</a>
+                <a href="/graphs?max=10000">Graph</a>
+                <a href="https://github.com/primegap-list-project/prime-gap-list/commits">Commit Log</a>
+            </nav>
+        </header>
 
-    <form method="POST" action="/"><br>
-      {{ render_field(formB.discoverer) }}
-      {{ render_field(formB.date) }}
-      <br><br>
-      {{ render_field(formB.logdata) }}
-      <br>
-      {{ render_field(formB.submit) }}
-      {{ render_field(formB.csrf_token) }}
-    </form>
+        <form method="POST" action="/">
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">{{ render_field(formB.discoverer) }}</div>
+                <div style="flex: 1;">{{ render_field(formB.date) }}</div>
+            </div>
 
-    <hr>
-    {% if status | length %}
-    <span class="half-col">
-      <h2>&nbsp;</h2>
-      <div id="results">{{status | safe}}</div>
-    </span>
-    {% endif %}
+            {{ render_field(formB.logdata) }}
+            <div style="text-align: right;">
+                {{ render_field(formB.submit) }}
+            </div>
+            {{ render_field(formB.csrf_token) }}
+        </form>
 
-    <span class="half-col">
-      <h2>
-        {{queued}} Queued
-        {% if queued %}
-          <a href={{ url_for('status') }}>Watch Queue</a>
-        {% endif %}
-      </h2>
-      <div id="queue">
-      {% for line in queue %}
-        <div>{{ line }}</div>
-      {% endfor %}
-      </div>
-    </span>
+        <hr>
+
+        <div class="results-container">
+            {% if status | length %}
+            <section>
+                <h3>Status Results</h3>
+                <div id="results">{{status | safe}}</div>
+            </section>
+            {% endif %}
+
+            <section>
+                <h3>
+                    {{queued}} Queued
+                    {% if queued %}
+                        <a href="{{ url_for('status') }}">Watch Queue</a>
+                    {% endif %}
+                </h3>
+                <div id="queue">
+                    {% for line in queue %}
+                        <div>{{ line }}</div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </div>
 </body>
 </html>
