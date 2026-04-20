@@ -418,6 +418,60 @@ def short_start(n):
     return "{}...{}<{}>".format(head, tail, length)
 
 
+def format_start(start, depth=10):
+    t = start
+
+    # Add spaces around *, /, -, + in last
+    t = re.sub(r"([0-9#])([*/+-])([0-9])", r"\1 \2 \3", t)
+    # Again because this is the most common issue
+    t = re.sub(r"([0-9#])([*/+-])([0-9])", r"\1 \2 \3", t)
+
+    # Parenthesis around Primorial
+    t = re.sub(r"\(([0-9]+#)\)", r"\1", t)
+
+    # Remove multiplication by 1
+    t = re.sub(r"^1 \* ", "", t)
+
+    # Remove divide by 1
+    t = re.sub(r"\s*/\s*1 ", " ", t)
+
+    # Simplify (X# * Y)
+    if match := re.search(r"\(([0-9]+#) \* ([0-9]+)\)", t):
+        print("\t", t)
+        start, end = match.span()
+        A, B = match.groups()
+        t = t[:start] + str(gmpy2.primorial(int(A[:-1])) * int(B)) + t[end:]
+        print("->\t", t)
+
+    # Simplify (X * Y)
+    if match := re.search(r"\(([0-9]+) \* ([0-9]+)\)", t):
+        print("\t", t)
+        start, end = match.span()
+        A, B = match.groups()
+        t = t[:start] + str(int(A) * int(B)) + t[end:]
+        print("->\t", t)
+
+    # Simplify + X + Y
+    while match := re.search(r"([+-]) ([0-9]+) ([+-]) ([0-9]+)$", t):
+        #print(i, "\t", t)
+        start, end = match.span()
+
+        s1, a, s2, b = match.groups()
+        A = int(s1 + a)
+        B = int(s2 + b)
+        C = A + B
+        D = "+" if C > 0 else "-"
+
+        t = t[:start] + f"{D} {abs(C)}" + t[end:]
+        #print("->\t", t)
+
+    if depth > 0 and t != start:
+        return format_start(t, depth-1)
+
+    return t
+
+
+
 def possible_add_to_queue(
         coord,
         gap_size, gap_start,
@@ -575,6 +629,7 @@ def possible_add_to_queue_log(coord, form):
 
     batch = []
     for size, start, who, when in line_datas:
+        start = format_start(start)
         item, status = possible_add_to_queue(coord, size, start, who, when)
         if item:
             batch.append(item)
