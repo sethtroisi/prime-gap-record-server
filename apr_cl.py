@@ -1,64 +1,76 @@
-# From https://github.com/wacchoz/APR_CL/blob/master/APR_CL.py
+# Copyright 2026 Seth Troisi
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Source from unlicensed https://github.com/wacchoz/APR_CL
+With improvements from Seth Troisi
+See "Primality Testing and Jacobi Sums By H. Cohen and H.W. Lenstra, Jn."
+"""
 
 import copy
+import math
+import sys
 import time
-from math import gcd  # version >= 3.5
+
+import gmpy2
+import primesieve
 
 
+# All factors of possible t
+T_FACTORS = [2, 3, 5, 7, 11, 13, 17, 19]
 
-# primality test by trial division
-def isprime_slow(n):
-    if n<2:
-        return False
-    elif n==2 or n==3:
-        return True
-    elif n%2==0:
-        return False
-    else:
-        i = 3
-        while i*i <= n:
-            if n%i == 0:
-                return False
-            i+=2
-    return True
-
-
-# v_q(t): how many time is t divided by q
+# Count of prime factor q in t
 def v(q, t):
+    assert t > 0 and q > 0
     ans = 0
-    while(t % q == 0):
-        ans +=1
-        t//= q
-    return ans
+    while True:
+        t, m = divmod(t, q)
+        if m != 0:
+            return ans
+        ans += 1
 
 
 def prime_factorize(n):
     ret = []
-    p=2
-    while p*p <= n:
-        if n%p==0:
-            num = 0
-            while n%p==0:
-                num+=1
-                n//= p
-            ret.append((p,num))
-        p+= 1
+    for p in T_FACTORS:
+        k = v(p, n)
+        if k > 0:
+            n, m = divmod(n, p ** k)
+            assert m == 0
+            ret.append((p, k))
 
-    if n!=1:
-        ret.append((n,1))
-
+    assert n == 1
     return ret
 
 
 # calculate e(t)
 def e(t):
-    s = 1
-    q_list = []
-    for q in range(2, t+2):
-        if t % (q-1) == 0 and isprime_slow(q):
-            s *= q ** (1+v(q,t))
-            q_list.append(q)
-    return 2*s, q_list
+    assert t % 2 == 0, "Odd case not handled"
+
+    e_t = 1
+    Q = []
+    # Could be precomputed but meh
+    for q in primesieve.primes(t+1):
+        if t % (q-1) == 0:
+            e_t *= q ** (v(q,t) + 1)
+            #print(t, q, v(q, t))
+            Q.append(q)
+    return 2*e_t, Q
+
+assert e(2)[0] == 24
+assert e(12)[0] == 65520
+assert e(60)[0] == 6814407600, e(60)
 
 # Jacobi sum
 class JacobiSum(object):
@@ -89,10 +101,11 @@ class JacobiSum(object):
                 if (i+j)% pk < m:
                     j_ret.coef[(i+j)% pk] += self.coef[i] * jac.coef[j]
                 else:
-                    r = (i+j) % pk - self.p ** (self.k-1)
+                    step = self.p ** (self.k-1)
+                    r = (i+j) % pk - step
                     while r>=0:
                         j_ret.coef[r] -= self.coef[i] * jac.coef[j]
-                        r-= self.p ** (self.k-1)
+                        r -= step
 
         return j_ret
 
@@ -111,13 +124,13 @@ class JacobiSum(object):
 
     # power of JacobiSum（x-th power mod n）
     def modpow(self, x, n):
-        j_ret=JacobiSum(self.p, self.k, self.q)
-        j_ret.coef[0]=1
+        j_ret = JacobiSum(self.p, self.k, self.q)
+        j_ret.coef[0] = 1
         j_a = copy.deepcopy(self)
-        while x>0:
-            if x%2==1:
+        while x > 0:
+            if x % 2 == 1:
                 j_ret = (j_ret * j_a).mod(n)
-            j_a = j_a*j_a
+            j_a = j_a * j_a
             j_a.mod(n)
             x //= 2
         return j_ret
@@ -205,7 +218,7 @@ class JacobiSum(object):
 # find primitive root
 def smallest_primitive_root(q):
     for r in range(2, q):
-        s = set({})
+        s = set()
         m = 1
         for i in range(1, q):
             m = (m*r) % q
@@ -269,9 +282,6 @@ def calc_J2(p, k, q):
 
 # in case of p>=3
 def APRtest_step4a(p, k, q, N):
-
-    print("Step 4a. (p^k, q = {0}^{1}, {2})".format(p,k,q))
-
     J = calc_J(p, k, q)
     # initialize s1=1
     s1 = JacobiSum(p,k,q).one()
@@ -320,9 +330,6 @@ def APRtest_step4a(p, k, q, N):
 
 # in case of p=2 and k>=3
 def APRtest_step4b(p, k, q, N):
-
-    print("Step 4b. (p^k, q = {0}^{1}, {2})".format(p,k,q))
-
     J = calc_J3(p, k, q)
     # initialize s1=1
     s1 = JacobiSum(p,k,q).one()
@@ -375,9 +382,6 @@ def APRtest_step4b(p, k, q, N):
 
 # in case of p=2 and k=2
 def APRtest_step4c(p, k, q, N):
-
-    print("Step 4c. (p^k, q = {0}^{1}, {2})".format(p,k,q))
-
     J2q = calc_J(p, k, q)
 
     # s1 = J(2,q)^2 * q (mod N)
@@ -410,9 +414,6 @@ def APRtest_step4c(p, k, q, N):
 
 # in case of p=2 and k=1
 def APRtest_step4d(p, k, q, N):
-
-    print("Step 4d. (p^k, q = {0}^{1}, {2})".format(p,k,q))
-
     S2q = pow(-q, (N-1)//2, N)
     if (S2q-1)%N != 0 and (S2q+1)%N != 0:
         # composite
@@ -427,27 +428,32 @@ def APRtest_step4d(p, k, q, N):
 
 
 # Step 4
-def APRtest_step4(p, k, q, N):
+def APRtest_step4(p, k, q, N, verbose):
 
     if p>=3:
+        if verbose:
+            print("Step 4a. (p^k, q = {0}^{1}, {2})".format(p,k,q))
         result, l_p = APRtest_step4a(p, k, q, N)
     elif p==2 and k>=3:
+        if verbose:
+            print("Step 4b. (p^k, q = {0}^{1}, {2})".format(p,k,q))
         result, l_p = APRtest_step4b(p, k, q, N)
     elif p==2 and k==2:
+        if verbose:
+            print("Step 4c. (p^k, q = {0}^{1}, {2})".format(p,k,q))
         result, l_p = APRtest_step4c(p, k, q, N)
     elif p==2 and k==1:
+        if verbose:
+            print("Step 4d. (p^k, q = {0}^{1}, {2})".format(p,k,q))
         result, l_p = APRtest_step4d(p, k, q, N)
     else:
-        print("error")
-
-    if not result:
-        print("Composite")
+        assert False
 
     return result, l_p
 
 
-def APRtest(N):
-    t_list = [
+def select_t(N):
+    t_candidates = [
         2,
         12,
         60,
@@ -464,36 +470,36 @@ def APRtest(N):
         1441440,
         4324320,
         24504480,
-        73513440
-        ]
-
-    print("N=", N)
-
-    if N<=3:
-        print("input should be greater than 3")
-        return False
+        73513440,
+        367567200,
+        1396755360,
+        6983776800,
+    ]
 
     # Select t
-    for t in t_list:
-        et, q_list = e(t)
-        if N < et*et:
-            break
-    else:
-        print("t not found")
-        return False
+    for t in t_candidates:
+        e_t, qlist = e(t)
+        if e_t*e_t > N:
+            return t, e_t, qlist
 
-    print("t=", t)
-    print("e(t)=", et, q_list)
+    assert False
+
+
+def step1and2(N, verbose):
+    t, e_t, Q = select_t(N)
+    if verbose:
+        print(f"e({t}) = {e_t} | {Q}")
 
     # Step 1
-    print("=== Step 1 ===")
-    g = gcd(t*et, N)
+    if verbose:
+        print("=== Step 1 ===")
+    g = math.gcd(t * e_t, N)
     if g > 1:
-        print("Composite")
         return False
 
     # Step 2
-    print("=== Step 2 ===")
+    if verbose:
+        print("=== Step 2 ===")
     l = {}
     fac_t = prime_factorize(t)
     for p, k in fac_t:
@@ -501,79 +507,99 @@ def APRtest(N):
             l[p] = 1
         else:
             l[p] = 0
-    print("l_p=", l)
+    if verbose:
+        print(f"l_p = {l}")
+    return t, e_t, Q, l
+
+
+def APRtest(N, verbose=False):
+    if verbose:
+        print(f"{N=}")
+
+    if N <= 3:
+        return N == 2 or N == 3
+
+    result = step1and2(N, verbose)
+    if result is False:
+        return False
+    t, e_t, Q, l = result
 
     # Step 3 & Step 4
-    print("=== Step 3&4 ===")
-    for q in q_list:
+    if verbose:
+        print("=== Step 3&4 ===")
+    for q in Q:
         if q == 2:
             continue
         fac = prime_factorize(q-1)
         for p,k in fac:
 
             # Step 4
-            result, l_p = APRtest_step4(p, k, q, N)
+            result, l_p = APRtest_step4(p, k, q, N, verbose)
 
             if not result:
-                # composite
-                print("Composite")
                 return False
             elif l_p==1:
                 l[p] = 1
 
     # Step 5
-    print("=== Step 5 ===")
-    print("l_p=", l)
+    if verbose:
+        print("=== Step 5 ===")
+        print("l_p=", l)
     for p, value in l.items():
         if value==0:
             # try other pair of (p,q)
-            print("Try other (p,q). p={}".format(p))
+            if verbose:
+                print("Try other (p,q). p={}".format(p))
             count = 0
             i = 1
             found = False
             # try maximum 30 times
             while count < 30:
                 q = p*i+1
-                if N%q != 0 and isprime_slow(q) and (q not in q_list):
+                if N%q != 0 and gmpy2.is_prime(q) and (q not in Q):
                     count += 1
 
                     k = v(p, q-1)
                     # Step 4
-                    result, l_p = APRtest_step4(p, k, q, N)
+                    result, l_p = APRtest_step4(p, k, q, N, verbose)
 
                     if not result:
-                        # composite
-                        print("Composite")
                         return False
                     elif l_p == 1:
                         found = True
                         break
                 i += 1
+
             if not found:
-                print("error in Step 5")
+                if verbose:
+                    print("error in Step 5")
                 return False
 
     # Step 6
-    print("=== Step 6 ===")
+    if verbose:
+        print("=== Step 6 ===")
     r = 1
-    for t in range(t-1):
-        r = (r*N) % et
-        if r!=1 and r!= N and N % r == 0:
-            print("Composite", r)
+    for _ in range(t-1):
+        r = (r*N) % e_t
+        if r != 1 and r != N and N % r == 0:
             return False
-    # prime!!
-    print("Prime!")
+
     return True
 
 
 if __name__ == '__main__':
-
-
     start_time = time.time()
 
-    APRtest(2**521-1)   # 157 digit, 18 sec
-#    APRtest(2**1279-1)  # 386 digit, 355 sec
-#    APRtest(2074722246773485207821695222107608587480996474721117292752992589912196684750549658310084416732550077)
+    if len(sys.argv) > 1:
+        N = int(sys.argv[1])
+    else:
+        N = 1208925819614629174706189
+        N = 2**521-1  # 157 digit, 4.1
+        N = 2**1279-1 # 386 digit, 122 seconds
+
+    status = APRtest(N, verbose=True)
 
     end_time = time.time()
     print(end_time - start_time, "sec")
+
+    exit(status)
