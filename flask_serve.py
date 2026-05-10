@@ -17,7 +17,7 @@ from wtforms.validators import DataRequired, Length
 from wtforms_components import IntegerField, DateField, DateRange
 
 import primegapverify
-
+from apr_cl import APRtest
 
 
 print("Setting up prime-records controller")
@@ -35,6 +35,7 @@ GAPS_DB_FN = "prime-gap-list/gaps.db"
 SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
+DETERMISTIC_LIMIT = 10 ** 100
 REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 80 * 10 ** 6
 
@@ -118,20 +119,22 @@ def gap_worker(coord):
             print("Worker running", batch_message, line_fmt)
 
             start_t = time.time()
-            success, internals_verified, status = test_one(coord, gap_size, start, discoverer, human)
+            success, classification, status = test_one(coord, gap_size, start, discoverer, human)
             end_t = time.time()
 
             coord.current[0] = "Postprocessing {}{}".format(
                 batch_message if len(batch) > 1 else "", gap_size)
 
             if success:
-                if not internals_verified:
-                    print("Changing C?D to C?d")
-                    assert "C?D" in line_fmt
-                    line_fmt = line_fmt.replace("C?D", "C?d")
-                    assert sql_insert[2:5] in (("C", "?", "d"), ("C", "?", "D")), sql_insert
-                    sql_insert = sql_insert[:4] + ("d",) + sql_insert[5:]
-                    item = (gap_size, start, improved, line_fmt, sql_insert)
+                assert classification in "cCdDtT", classification
+                old = "C??"
+                new = "C?" + classification
+                print(f"Changing {old} to {new}")
+                assert old in line_fmt
+                line_fmt = line_fmt.replace(old, new)
+                assert sql_insert[2:5] == tuple(old), sql_insert
+                sql_insert = sql_insert[:2] + tuple(new) + sql_insert[5:]
+                item = (gap_size, start, improved, line_fmt, sql_insert)
 
                 status = "Verified! ({:.1f}s)".format(end_t - start_t)
                 verified.append(item)
@@ -248,7 +251,19 @@ def sieve_interval(human, start, gap_size, faster):
 
 
 def test_one(coord, gap_size, start, discoverer, human):
-    """Returns Verified, Internals All Verified, Message"""
+    """
+    Returns
+        Verified: Bool
+            Is the gap valid
+        Classification: CDd
+            C: internal gaps double-checked and bounds determinstically prime
+            D: internal gaps double-checked and bounds probablistic primes
+            d: internal gaps spot-checked and bounds probabalistic primes
+            t: internal gaps unchecked and bounds probabalistic primes
+            False: Not a valid gap
+        Message: str
+            status to show
+    """
     assert start % 2 == 1
 
     tests = 0
@@ -258,14 +273,24 @@ def test_one(coord, gap_size, start, discoverer, human):
     if not primegapverify.is_prime_large(start, human):
         return False, False, "start not prime"
 
-    if not primegapverify.is_prime_large(start + gap_size, f"{human} + {gap_size}"):
+    end_prime = start + gap_size
+    if not primegapverify.is_prime_large(end_prime, f"{human} + {gap_size}"):
         return False, False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
     if start > REALLY_LARGE:
         assert discoverer in TRUSTED_DISCOVERER, discoverer
         # Not verified
-        return True, False, "Large Gap! Only endpoints verified"
+        return True, "t", "Large Gap! Only endpoints verified"
+
+    certified_endpoints = False
+    if end_prime < DETERMISTIC_LIMIT:
+        certified_endpoints = APRtest(start) and APRtest(end_prime)
+        if not certified_endpoints:
+            print(f"APRCL issue with: {start} or {end_prime}")
+            with open("errors.txt", "a") as f:
+                f.write(f"APRCL issue with: {start} or {end_prime}")
+            exit(1)
 
     tests += 2
     coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
@@ -274,6 +299,7 @@ def test_one(coord, gap_size, start, discoverer, human):
     log_n = gmpy2.log(start)
     merit = gap_size / log_n
     test_fraction = 1
+
 
     # Primes take ~4.5x longer (for gmpy2, but not pfgw64)
     if gmpy2.num_digits(start, 2) <= 8000:
@@ -325,7 +351,11 @@ def test_one(coord, gap_size, start, discoverer, human):
         coord.current[0] = "Testing {}, {}/{} done, {}/{} PRPs performed".format(
             gap_size, k+1, gap_size, tests, unknowns)
 
-    return True, internals_verified, "Verified"
+    classification = "c" if certified_endpoints else "d"
+    if internals_verified:
+        classification = classification.upper()
+
+    return True, classification, "Verified"
 
 
 def update_all_sql(all_sql_lines, gap_size, sql_insert):
@@ -546,12 +576,12 @@ def possible_add_to_queue(
     newmerit_fmt = "{:.4f}".format(new_merit)
     primedigits = num_digits(start_n)
 
-    # final D vs d is determined by the `internals_verified` return of test_one
+    # final letter (classification) is determined by the return of test_one
     # See https://primegap-list-project.github.io/project/2022/06/24/classification-format/
     # C = Common, Classic
     # ? = Not first occurrence
     # D = Bounds & Internals double checked, d = only end points verified
-    ccc_type = "C?D"
+    ccc_type = "C??"
 
     line_fmt = "{}, {}, {}, {}, {}, {}, {}".format(
         gap_size, ccc_type, newmerit_fmt, discoverer,
@@ -842,6 +872,7 @@ def secret_test_page_write_db():
 
     return "Updated=" + str(updated)
 
+# http://primegaps.localhost/secret_test_test_records?gap=5000
 @app.route("/secret_test_test_records")
 def secret_test_page_test_one():
     global global_coord
@@ -851,22 +882,29 @@ def secret_test_page_test_one():
     output = []
     try:
         with get_db() as db:
-            lines = list(tuple(r) for r in db.execute(
-                "SELECT gapsize, startprime, discoverer FROM gaps "
-                "WHERE gapsize BETWEEN 100 and 5000 AND primedigits < 100"))
-            lines = sorted(random.sample(lines, 100))
-            output.append("Sampled 100 lines first: " + str(lines[0]))
+            gap = request.args.get("gap")
+            if gap:
+                lines = list(tuple(r) for r in db.execute(
+                    "SELECT gapsize, startprime, discoverer FROM gaps "
+                    "WHERE gapsize = ?", (int(gap),)))
+            else:
+                lines = list(tuple(r) for r in db.execute(
+                    "SELECT gapsize, startprime, discoverer FROM gaps "
+                    "WHERE gapsize BETWEEN 100 and 5000 AND primedigits < 100"))
+                lines = sorted(random.sample(lines, 100))
+                output.append("Sampled 100 lines first: " + str(lines[0]))
 
             for gap_size, human, who in lines:
                 start = primegapverify.parse(human)
                 if not start:
                     output.append("Failed to parse: " + human)
                 else:
-                    success, internals, status = test_one(coord, gap_size, start, who, human)
+                    success, classification, status = test_one(coord, gap_size, start, who, human)
                     if not success:
                         output.append("Failed({}): {}".format(status, (gap_size, human)))
                     else:
-                        output.append("Successfully tested({}): {}".format((gap_size, human), status))
+                        output.append("Successfully tested({}) -> {} | {}".format(
+                            (gap_size, human), classification, status))
     except Exception as e:
         import traceback
         print ("Error on secret test page")
