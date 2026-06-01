@@ -25,12 +25,18 @@
             padding: 40px 20px;
         }
 
+        @media (max-width: 800px) {
+          body {
+            align-items: flex-start;
+          }
+        }
+
         .card {
             background: var(--card-bg);
-            width: 80%;
-            min-width: 500px;
+            width: max(80%, min(100%, 800px));
+            min-width: 350px;
             max-width: 1200px;
-            padding: 40px;
+            padding: min(40px, 4%);
             border-radius: 12px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
             box-sizing: border-box;
