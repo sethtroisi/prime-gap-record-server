@@ -46,6 +46,7 @@ TRUSTED_DISCOVERER = (
     "MrtnRaab", "RobSmith", "S.Troisi",
     "DStevens", "MJandJKA", "MJPC&JKA",
     "RSMJ&JKA", "AndreasH", "A.Renyer",
+    "VGautier",
 )
 
 def num_digits(n):
