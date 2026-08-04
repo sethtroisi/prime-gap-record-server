@@ -39,7 +39,13 @@ DETERMISTIC_LIMIT = 10 ** 100
 REALLY_LARGE = 10 ** 28000
 SIEVE_PRIMES = 80 * 10 ** 6
 
+GAP_SIZE_FOR_TRUSTED_SUBMIT = 175000
+
 MAX_DIGITS = 400000
+
+START_FOR_MIN_MERIT = 500000
+MIN_MERIT = 5
+
 
 TRUSTED_DISCOVERER = (
     "Jacobsen", "Rosnthal", "M.Jansen",
@@ -301,6 +307,9 @@ def test_one(coord, gap_size, start, discoverer, human):
     merit = gap_size / log_n
     test_fraction = 1
 
+    if gap_size > GAP_SIZE_FOR_TRUSTED_SUBMIT and merit < 20:
+        if discoverer in TRUSTED_DISCOVERER:
+            return True, "t", "Medium Gap from trusted discoverer! Only endpoints verified"
 
     # Primes take ~4.5x longer (for gmpy2, but not pfgw64)
     if gmpy2.num_digits(start, 2) <= 8000:
@@ -572,6 +581,12 @@ def possible_add_to_queue(
                 e_merit,
                 short_start(start_n),
                 new_merit)
+
+    if e_start is None:
+        if gap_size > START_FOR_MIN_MERIT and new_merit < MIN_MERIT:
+            # Not interested in new records with small merit.
+            return False, "Records with gap > {} and merit < {} aren't tracked".format(
+                    START_FOR_MIN_MERIT, MIN_MERIT)
 
     # Old style line & github entry
     newmerit_fmt = "{:.4f}".format(new_merit)
