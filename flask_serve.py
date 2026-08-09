@@ -8,6 +8,7 @@ import subprocess
 import sqlite3
 import time
 import gzip
+import sys
 
 import gmpy2
 from flask import Flask, Response, g, render_template, request
@@ -19,6 +20,9 @@ from wtforms_components import IntegerField, DateField, DateRange
 import primegapverify
 from apr_cl import APRtest
 
+
+# Needed for a handful of records in the database that aren't primorial
+sys.set_int_max_str_digits(22000)
 
 print("Setting up prime-records controller")
 
@@ -371,9 +375,10 @@ def test_one(coord, gap_size, start, discoverer, human):
 def update_all_sql(all_sql_lines, gap_size, sql_insert):
     assert 110 < len(all_sql_lines) < 150000, len(all_sql_lines)
 
+    # HACK: Don't want to compress spaces in start_prime (last part) of sql_insert
+    str_sql_insert = "(" + ",".join(map(repr, sql_insert)) + ")"
     # HACK: want merit to be like 15.230 not 15.23 so used {:.3f} not round
     # Downside is str(sql_insert) changes that to '15.230' so convert back here.
-    str_sql_insert = str(sql_insert).replace(" ", "")
     str_sql_insert = re.sub(r",'([0-9.]+)',", r",\1,", str_sql_insert)
     new_line = SQL_INSERT_PREFIX + str_sql_insert + ";\n"
 
