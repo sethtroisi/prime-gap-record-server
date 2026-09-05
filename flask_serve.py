@@ -460,7 +460,7 @@ def short_start(n):
         return str(n)
     head = str(n // (10 ** (length - 3)))
     tail = str(n % 1000)
-    return "{}...{}<{}>".format(head, tail, length)
+    return "{}...{:>03}<{}>".format(head, tail, length)
 
 
 def format_start(start, depth=10):
