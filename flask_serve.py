@@ -50,6 +50,9 @@ MAX_DIGITS = 400000
 START_FOR_MIN_MERIT = 500000
 MIN_MERIT = 5
 
+WAIT_TIME = datetime.timedelta(hours=23)
+LAST_SUBMISSION = { }
+
 
 TRUSTED_DISCOVERER = (
     "Jacobsen", "Rosnthal", "M.Jansen",
@@ -214,6 +217,8 @@ def gap_worker(coord):
         for _, _, _, line_fmt, _ in verified:
             coord.new_records.append(line_fmt)
 
+        now = datetime.datetime.now()
+
         # Write to gaps.db
         with open_db() as db:
             start_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
@@ -225,6 +230,8 @@ def gap_worker(coord):
                 if a.rowcount != 1 or b.rowcount != 1:
                     print ("UPDATE {} UNEQUAL: {} & {}".format(
                         sql_insert, a.rowcount, b.rowcount))
+                discoverer = sql_insert[5]
+                LAST_SUBMISSION[discoverer] = now
             db.commit()
             end_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
 
@@ -349,9 +356,9 @@ def test_one(coord, gap_size, start, discoverer, human):
 
     internals_verified = True
     unknowns = 2 # for endpoints
+    unknowns += sum(not composite[k] for k in range(2, gap_size, 2))
     for k in range(2, gap_size, 2):
         if composite[k]: continue
-        unknowns += 1
 
         if test_fraction > 0 and random.random() > test_fraction:
             # Some skips happened
@@ -620,6 +627,37 @@ def possible_add_to_queue(
         "{:.3f}".format(e_merit) if e_merit > 0.1 else "NONE",
         new_merit)
 
+def _check_all_recent(batch):
+    if len(batch) >= 25:
+        return True, ""
+
+    now = datetime.datetime.now()
+    delay = WAIT_TIME
+    for gap_size, start_n, improved_merit, line_fmt, sql_insert in batch:
+        if improved_merit > 37:
+            # I'll allow it
+            return True, ""
+        discoverer = sql_insert[5]
+        last = LAST_SUBMISSION.get(discoverer)
+        if not last:
+            return True, ""
+
+        if last + WAIT_TIME < now:
+            return True, ""
+
+        delay = (last + WAIT_TIME) - now
+
+    return False, """
+You have submitted a records recently.<br>
+<br>
+To limit the number of commits, you'll need to do one of the following:<br>
+* wait {:.1f} hours to submit a second set of records<br>
+* include 25+ records<br>
+* include a 37+ merit gap<br>
+<br>
+Thanks,<br>
+the git elfs
+""".format(delay.total_seconds() / 3600)
 
 def possible_add_to_queue_log(coord, form):
     discoverer = form.discoverer.data
@@ -685,6 +723,12 @@ def possible_add_to_queue_log(coord, form):
         if item:
             batch.append(item)
         statuses.append(status)
+
+    # Check if user has a "recent" submission and possibly show an error message
+    good, error_msg = _check_all_recent(batch)
+    if not good:
+        print(error_msg)
+        return False, error_msg
 
     if batch:
         with coord.client_size.get_lock():
@@ -860,6 +904,14 @@ def graph_merit_csv_year():
 @app.route("/graphs.html")
 def graphs():
     return app.send_static_file("graphs.html")
+
+
+@app.route("/last_submissions")
+def last_submissions():
+    return "<br>".join(
+        ["Recent user submissions:"] +
+        [ who + " at  " + when.isoformat() for who, when in LAST_SUBMISSION.items()]
+    )
 
 
 @app.route("/secret_test")
