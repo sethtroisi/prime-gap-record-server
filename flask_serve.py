@@ -217,8 +217,6 @@ def gap_worker(coord):
         for _, _, _, line_fmt, _ in verified:
             coord.new_records.append(line_fmt)
 
-        now = datetime.datetime.now()
-
         # Write to gaps.db
         with open_db() as db:
             start_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
@@ -231,7 +229,6 @@ def gap_worker(coord):
                     print ("UPDATE {} UNEQUAL: {} & {}".format(
                         sql_insert, a.rowcount, b.rowcount))
                 discoverer = sql_insert[5]
-                LAST_SUBMISSION[discoverer] = now
             db.commit()
             end_count = list(db.execute("SELECT COUNT(*) FROM gaps"))
 
@@ -639,7 +636,7 @@ def _check_all_recent(batch):
             return True, ""
         discoverer = sql_insert[5]
         last = LAST_SUBMISSION.get(discoverer)
-        if not last:
+        if last is None:
             return True, ""
 
         if last + WAIT_TIME < now:
@@ -725,16 +722,19 @@ def possible_add_to_queue_log(coord, form):
         statuses.append(status)
 
     # Check if user has a "recent" submission and possibly show an error message
-    good, error_msg = _check_all_recent(batch)
-    if not good:
-        print(error_msg)
-        return False, error_msg
+    if batch:
+        good, error_msg = _check_all_recent(batch)
+        if not good:
+            print(error_msg)
+            return False, error_msg
 
     if batch:
         with coord.client_size.get_lock():
             coord.client_size.value += len(batch)
             coord.queue.put(batch)
             for item in batch:
+                discoverer = item[-1][5]
+                LAST_SUBMISSION[discoverer] = datetime.datetime.now()
                 coord.client_queue.append(item[3])
 
     print("Processed {} lines to {} batch".format(
