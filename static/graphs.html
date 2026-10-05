@@ -128,7 +128,7 @@ d3.csv(csv_file + window.location.search, function(data) {
       .call(d3.axisLeft(y));
     svg.append("g")
       .attr("class", "y grid")
-      .call(d3.axisLeft(y).tickValues([10, 15, 20, 25, 30, 35]).tickSize(-width).tickFormat(''));
+      .call(d3.axisLeft(y).tickValues([10, 15, 20, 25, 30, 35, 40]).tickSize(-width).tickFormat(''));
 
     // Add the X Axis
     var xAxis = svg.append("g")
