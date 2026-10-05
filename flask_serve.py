@@ -210,7 +210,10 @@ def gap_worker(coord):
                 max(item[0] for item in verified))
             commit_msgs.insert(0, header)
 
-        commit_msg = "\n".join(commit_msgs)
+        if len(commit_msgs) > 200:
+            commit_msg = "\n".join(commit_msgs[:104] + ["..."] + commit_msgs[-95:])
+        else:
+            commit_msg = "\n".join(commit_msgs)
         git_commit_and_push(commit_msg)
 
         # Save to new_records now that batch is finished
