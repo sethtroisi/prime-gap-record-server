@@ -47,8 +47,8 @@ GAP_SIZE_FOR_TRUSTED_SUBMIT = 175000
 
 MAX_DIGITS = 400000
 
-START_FOR_MIN_MERIT = 500000
-MIN_MERIT = 5
+# Series of [START_GAP, MIN_MERIT]
+MIN_MERITS = [[100000, 4], [200000, 5], [300000, 10], [1000000, 6]]
 
 WAIT_TIME = datetime.timedelta(hours=23)
 LAST_SUBMISSION = { }
@@ -549,7 +549,7 @@ def possible_add_to_queue(
     if start_n >= REALLY_LARGE:
         digits = start_n.bit_length() * math.log10(2)
         if discoverer not in TRUSTED_DISCOVERER or digits > MAX_DIGITS:
-            return False, "gapstart={} is to large at this time".format(gap_start)
+            return False, "gapstart={} is too large at this time".format(gap_start)
 
     # Check if already queued (or better queued)
     existing = coord.processed.get(gap_size)
@@ -595,10 +595,10 @@ def possible_add_to_queue(
                 new_merit)
 
     if e_start is None:
-        if gap_size > START_FOR_MIN_MERIT and new_merit < MIN_MERIT:
-            # Not interested in new records with small merit.
-            return False, "Records with gap > {} and merit < {} aren't tracked".format(
-                    START_FOR_MIN_MERIT, MIN_MERIT)
+        for g, mm in reversed(MIN_MERITS):
+            if g < gap_size and new_merit < mm:
+                # Not interested in new records with small merit.
+                return False, "Records with gap > {} and merit < {} aren't tracked".format(g, mm)
 
     # Old style line & github entry
     newmerit_fmt = "{:.4f}".format(new_merit)
