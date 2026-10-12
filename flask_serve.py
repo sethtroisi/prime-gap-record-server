@@ -40,7 +40,7 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 DETERMISTIC_LIMIT = 10 ** 100
-REALLY_LARGE = 10 ** 28000
+REALLY_LARGE = 10 ** 15000
 SIEVE_PRIMES = 80 * 10 ** 6
 
 GAP_SIZE_FOR_TRUSTED_SUBMIT = 175000
@@ -59,7 +59,7 @@ TRUSTED_DISCOVERER = (
     "MrtnRaab", "RobSmith", "S.Troisi",
     "DStevens", "MJandJKA", "MJPC&JKA",
     "RSMJ&JKA", "AndreasH", "A.Renyer",
-    "VGautier",
+    "VGautier", "PDeGeest",
 )
 
 def num_digits(n):
