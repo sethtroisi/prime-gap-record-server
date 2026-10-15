@@ -667,7 +667,7 @@ def possible_add_to_queue_log(coord, form):
     line_datas = []
     statuses = []
 
-    # Numbers of the form {m*P#/d-s, m*P#/d#-s, P#/d-s, m*P#+-a, b^p+-a, m*b^p+-a}
+    # Numbers of the form {m*P#/d+-s, m*P#/d#+-s, P#/d+-s, m*P#+-s, b^p+-a, m*b^p+-a, num}
     number_re = r"((\d+\s*\*\s*)?\d+#\s*(\/\s*\d+#?\s*)?[+-]\s*\d+|(\d+\s*\*\s*)?\d+\^\d+[+-]\d+|\d+)"
 
     for line in log_data.split("\n"):
@@ -701,6 +701,7 @@ def possible_add_to_queue_log(coord, form):
             line_datas.append((int(match.group(1)), match.group(3), discoverer, discover_date))
             continue
 
+        # <gap>
         gap_start_re = r"(\d+)\s+" + number_re
         match = re.search(gap_start_re, line)
         if match:
