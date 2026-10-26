@@ -300,7 +300,14 @@ def test_one(coord, gap_size, start, discoverer, human):
     if start > TRUSTED_LIMIT:
         assert discoverer in TRUSTED_DISCOVERER, discoverer
         # Not verified
-        return True, "t", "Large Gap! Only endpoints verified"
+        return True, "d", "Large Gap! Only endpoints verified"
+
+    log_n = gmpy2.log(start)
+    merit = gap_size / log_n
+
+    if gap_size > GAP_SIZE_FOR_TRUSTED_SUBMIT and merit < 20:
+        if discoverer in TRUSTED_DISCOVERER:
+            return True, "d", "Medium Gap from trusted discoverer! Only endpoints verified"
 
     certified_endpoints = False
     if end_prime < DETERMISTIC_LIMIT:
@@ -314,14 +321,6 @@ def test_one(coord, gap_size, start, discoverer, human):
     tests += 2
     coord.current[0] = "Testing {}, Endpoints tested, sieving interval".format(
         gap_size)
-
-    log_n = gmpy2.log(start)
-    merit = gap_size / log_n
-    test_fraction = 1
-
-    if gap_size > GAP_SIZE_FOR_TRUSTED_SUBMIT and merit < 20:
-        if discoverer in TRUSTED_DISCOVERER:
-            return True, "t", "Medium Gap from trusted discoverer! Only endpoints verified"
 
     # Primes take ~4.5x longer (for gmpy2, but not pfgw64)
     if gmpy2.num_digits(start, 2) <= 8000:
@@ -339,6 +338,8 @@ def test_one(coord, gap_size, start, discoverer, human):
 
     print ("       {:30s} | {:5} PRP, expected time {:4.1f} (ends: {:.1f}, sieve: {:.1f})".format(
         human, prp_count, expected_time, prime_test_time, sieve_time))
+
+    test_fraction = 1
 
     if expected_time > 3 * 60 and merit < 22:
         print ("MEGAGAP: log_n: {:.0f} (estimated prp_time: {:.1f} = {:.2f}s x ~{}) "
@@ -361,7 +362,7 @@ def test_one(coord, gap_size, start, discoverer, human):
     for k in range(2, gap_size, 2):
         if composite[k]: continue
 
-        if test_fraction > 0 and random.random() > test_fraction:
+        if test_fraction < 1 and random.random() > test_fraction:
             # Some skips happened
             internals_verified = False
             continue
