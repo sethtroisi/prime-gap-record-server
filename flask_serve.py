@@ -40,12 +40,13 @@ SQL_INSERT_PREFIX = "INSERT INTO gaps VALUES"
 assert os.path.isfile(ALL_SQL_FN), "git init submodule first"
 
 DETERMISTIC_LIMIT = 10 ** 100
-REALLY_LARGE = 10 ** 15000
+# Above this only trusted discoverer records
+TRUSTED_LIMIT = 10 ** 15000
 SIEVE_PRIMES = 80 * 10 ** 6
 
 GAP_SIZE_FOR_TRUSTED_SUBMIT = 175000
 
-MAX_DIGITS = 400000
+MAX_DIGITS = 425000
 
 # Series of [START_GAP, MIN_MERIT]
 MIN_MERITS = [[100000, 4], [200000, 5], [300000, 10], [1000000, 6]]
@@ -296,7 +297,7 @@ def test_one(coord, gap_size, start, discoverer, human):
         return False, False, "end not prime"
     prime_test_time = time.time() - prime_test_time
 
-    if start > REALLY_LARGE:
+    if start > TRUSTED_LIMIT:
         assert discoverer in TRUSTED_DISCOVERER, discoverer
         # Not verified
         return True, "t", "Large Gap! Only endpoints verified"
@@ -546,7 +547,7 @@ def possible_add_to_queue(
     elif start_n % 2 == 0:
         return False, "gapstart={} is even".format(gap_start)
 
-    if start_n >= REALLY_LARGE:
+    if start_n >= TRUSTED_LIMIT:
         digits = start_n.bit_length() * math.log10(2)
         if discoverer not in TRUSTED_DISCOVERER or digits > MAX_DIGITS:
             return False, "gapstart={} is too large at this time".format(gap_start)
